@@ -1,6 +1,7 @@
 .PHONY: all test lint eif star-randsrv clean
 
 binary = star-randsrv
+image = $(binary):latest
 godeps = *.go go.mod go.sum
 
 all: test lint $(binary)
@@ -25,6 +26,20 @@ eif: image
 	nitro-cli run-enclave --cpu-count 2 --memory 2500 --enclave-cid 4 --eif-path ko.eif --debug-mode
 	@echo "Showing enclave logs."
 	nitro-cli console --enclave-id $$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveID')
+
+docker:
+	@docker run \
+		-v $(PWD):/workspace \
+		--network=host \
+		gcr.io/kaniko-project/executor:v1.7.0 \
+		--reproducible \
+		--dockerfile /workspace/Dockerfile \
+		--no-push \
+		--tarPath /workspace/$(binary)-repro.tar \
+		--destination $(image) \
+		--context dir:///workspace/ && cat $(binary)-repro.tar | docker load >/dev/null
+	@rm -f $(binary)-repro.tar
+	@echo $(image)
 
 $(binary): $(godeps)
 	go build -o $(binary)
