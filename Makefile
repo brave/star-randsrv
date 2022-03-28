@@ -3,10 +3,11 @@
 binary = star-randsrv
 image = $(binary):latest
 godeps = *.go go.mod go.sum
+stardeps = sta-rs sta-rs/ppoprf/ffi/include/ppoprf.h sta-rs/target/release/libffi.a
 
 all: test lint $(binary)
 
-test: $(godeps)
+test: $(godeps) $(stardeps)
 	go test -cover ./...
 
 lint:
@@ -41,8 +42,14 @@ docker:
 	@rm -f $(binary)-repro.tar
 	@echo $(image)
 
-$(binary): $(godeps)
+$(binary): $(godeps) $(stardeps)
 	go build -o $(binary)
+
+sta-rs:
+	git clone --branch ppoprf-ffi https://github.com/NullHypothesis/sta-rs
+
+sta-rs/ppoprf/ffi/include/ppoprf.h sta-rs/target/release/libffi.a:
+	cd sta-rs/ppoprf/ffi && cargo build --release
 
 clean:
 	@rm -f $(binary)
