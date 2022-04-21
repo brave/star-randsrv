@@ -28,7 +28,7 @@ eif: image
 	@echo "Showing enclave logs."
 	nitro-cli console --enclave-id $$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveID')
 
-docker:
+docker: sta-rs
 	@docker run \
 		-v $(PWD):/workspace \
 		--network=host \
