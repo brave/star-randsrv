@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"net/http/httptest"
-	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -38,14 +37,6 @@ func makeReq(getHandler func(*Server) http.HandlerFunc, req *http.Request) (int,
 		log.Fatalf("Failed to read HTTP response body: %s", err)
 	}
 	return res.StatusCode, strings.TrimSpace(string(data))
-}
-
-func u(strURL string) *url.URL {
-	u, err := url.Parse(strURL)
-	if err != nil {
-		log.Fatalf("Failed to parse URL %q: %s", strURL, err)
-	}
-	return u
 }
 
 func TestEpoch(t *testing.T) {
