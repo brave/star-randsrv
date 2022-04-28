@@ -12,6 +12,18 @@ Enclave.
 Installation
 ------------
 
+To test, lint, and build the randomness server, simply run:
+
+```
+make
+```
+
+To build a reproducible Docker image of the randomness server, run:
+
+```
+make docker
+```
+
 Input
 -----
 
