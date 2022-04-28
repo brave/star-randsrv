@@ -8,9 +8,12 @@ package main
 import "C"
 
 import (
+	"bytes"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -28,14 +31,22 @@ import (
 )
 
 var (
-	elog = log.New(os.Stderr, "star-randsrv: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
-
-	errNoECPoint     = "no 'ec_point' parameter given"
+	elog             = log.New(os.Stderr, "star-randsrv: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+	errNoReqBody     = "no request body"
+	errBadJSON       = "failed to decode JSON"
+	errNoECPoints    = "no EC points in request body"
 	errDecodeECPoint = "failed to decode EC point"
 	errParseECPoint  = "failed to parse EC point"
 )
 
 type epoch uint8
+
+type randRequest struct {
+	Points []string `json:"points"`
+}
+
+// The response has the same format as the request.
+type randResponse randRequest
 
 // Embed an zero-length struct to mark our wrapped structs `noCopy`
 //
@@ -91,38 +102,60 @@ func getEpoch(t time.Time) epoch {
 // server object into
 func getRandomnessHandler(srv *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		encodedPoint := r.URL.Query().Get("ec_point")
-		if encodedPoint == "" {
-			http.Error(w, errNoECPoint, http.StatusBadRequest)
-			return
-		}
-
-		// Remove layer of hexadecimal encoding from marshalled EC point.
-		marshalledPoint, err := hex.DecodeString(encodedPoint)
-		if err != nil {
-			http.Error(w, errDecodeECPoint, http.StatusBadRequest)
-			return
-		}
-
-		// Check if we can parse the given EC point.  If it's un-parseable, we
-		// don't need to bother passing the point over our FFI.
-		var p ristretto.Point
-		if err := p.UnmarshalBinary(marshalledPoint); err != nil {
-			http.Error(w, errParseECPoint, http.StatusBadRequest)
-			return
-		}
-
-		var input []byte = []byte(marshalledPoint)
+		var req randRequest
+		var resp randResponse
+		var input []byte
 		var verifiable bool = false
-		var output [32]byte // Ristretto points are 32 bytes long.
+		var output [32]byte
 		var md uint8 = 0
-		C.randomness_server_eval(srv.raw,
-			(*C.uint8_t)(unsafe.Pointer(&input[0])),
-			(C.ulong)(md),
-			(C.bool)(verifiable),
-			(*C.uint8_t)(unsafe.Pointer(&output[0])))
 
-		fmt.Fprintf(w, "%x", output)
+		body, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(body) == 0 {
+			http.Error(w, errNoReqBody, http.StatusBadRequest)
+			return
+		}
+		if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
+			http.Error(w, errBadJSON, http.StatusBadRequest)
+			return
+		}
+		if len(req.Points) == 0 {
+			http.Error(w, errNoECPoints, http.StatusBadRequest)
+			return
+		}
+
+		for _, encodedPoint := range req.Points {
+			// Remove layer of hexadecimal encoding from marshalled EC point.
+			marshalledPoint, err := hex.DecodeString(encodedPoint)
+			if err != nil {
+				http.Error(w, errDecodeECPoint, http.StatusBadRequest)
+				return
+			}
+
+			// Check if we can parse the given EC point.  If it's un-parseable,
+			// we don't need to bother passing the point over our FFI.
+			var p ristretto.Point
+			if err := p.UnmarshalBinary(marshalledPoint); err != nil {
+				http.Error(w, errParseECPoint, http.StatusBadRequest)
+				return
+			}
+
+			input = []byte(marshalledPoint)
+			C.randomness_server_eval(srv.raw,
+				(*C.uint8_t)(unsafe.Pointer(&input[0])),
+				(C.ulong)(md),
+				(C.bool)(verifiable),
+				(*C.uint8_t)(unsafe.Pointer(&output[0])))
+			resp.Points = append(resp.Points, fmt.Sprintf("%x", output))
+		}
+
+		if err := json.NewEncoder(w).Encode(resp); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 }
 

@@ -1,13 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -15,9 +15,8 @@ import (
 
 var (
 	// A valid EC point consists of 64 hex digits.
-	validPointRegexp = regexp.MustCompile(`^[0-9a-f]{64}$`)
-	validPoint       = "f6414bfccc156551d641260ce403992c5d5b0976aca8a72541fda40e8337d867"
-	oneWeek          = time.Hour * 24 * 7
+	validPoint = "f6414bfccc156551d641260ce403992c5d5b0976aca8a72541fda40e8337d867"
+	oneWeek    = time.Hour * 24 * 7
 )
 
 func makeReq(getHandler func(*Server) http.HandlerFunc, req *http.Request) (int, string) {
@@ -76,20 +75,40 @@ func TestEpoch(t *testing.T) {
 func TestHTTPHandler(t *testing.T) {
 	var resp string
 	var code int
-	req := httptest.NewRequest(http.MethodGet, "/randomness", nil)
+	// Generated random Ristretto points as follows:
+	//   var p ristretto.Point
+	//   p.Rand()
+	//   fmt.Printf("%x\n", p.Bytes())
+	validPayload := `{"points": [
+		"90aaa9713616607aed7a0eb685511c5862e4c3a2fecf21a748bce5b33077492e",
+		"a4e0b94d2cb2d93ac397caaf0bb1798224fbec29da4ebce6cd134d3970d2de0e",
+		"8297f13c55137c9bca743eb1e46ef8543f41c5d6f779fb0760937477bbeed171"
+	]}`
+	validReq := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(validPayload))
 
-	// Call the right endpoint but don't provide an argument key.
-	code, resp = makeReq(getRandomnessHandler, req)
-	if resp != errNoECPoint {
-		t.Errorf("Expected %q but got %q.", errNoECPoint, resp)
+	// Call the right endpoint but don't provide a request body.
+	emptyReq := httptest.NewRequest(http.MethodPost, "/randomness", nil)
+	code, resp = makeReq(getRandomnessHandler, emptyReq)
+	if resp != errNoReqBody {
+		t.Errorf("Expected %q but got %q.", errNoReqBody, resp)
 	}
 	if code != http.StatusBadRequest {
 		t.Errorf("Expected HTTP code %d but got %d.", http.StatusBadRequest, code)
 	}
 
-	// Provide the right argument key, but use an invalid value.
-	req.URL = u("/randomness?ec_point=foo")
-	code, resp = makeReq(getRandomnessHandler, req)
+	// Provide a request body, but have it be nonsense.
+	badReq := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader("foo"))
+	code, resp = makeReq(getRandomnessHandler, badReq)
+	if resp != errBadJSON {
+		t.Errorf("Expected %q but got %q.", errBadJSON, resp)
+	}
+	if code != http.StatusBadRequest {
+		t.Errorf("Expected HTTP code %d but got %d.", http.StatusBadRequest, code)
+	}
+
+	// Provide valid JSON but use a bogus EC point.
+	badReq = httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(`{"points":["foo"]}`))
+	code, resp = makeReq(getRandomnessHandler, badReq)
 	if resp != errDecodeECPoint {
 		t.Errorf("Expected %q but got %q.", errDecodeECPoint, resp)
 	}
@@ -97,9 +116,10 @@ func TestHTTPHandler(t *testing.T) {
 		t.Errorf("Expected HTTP code %d but got %d.", http.StatusBadRequest, code)
 	}
 
-	// Provide a decodable argument value, but use an invalid EC point.
-	req.URL = u("/randomness?ec_point=deadbeef")
-	code, resp = makeReq(getRandomnessHandler, req)
+	// Provide an invalid EC point.
+	badPayload := `{"points":["1111111111111111111111111111111111111111111111111111111111111111"]}`
+	badReq = httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(badPayload))
+	code, resp = makeReq(getRandomnessHandler, badReq)
 	if resp != errParseECPoint {
 		t.Errorf("Expected %q but got %q.", errParseECPoint, resp)
 	}
@@ -108,21 +128,20 @@ func TestHTTPHandler(t *testing.T) {
 	}
 
 	// Finally, show mercy and make a valid request.
-	req.URL = u(fmt.Sprintf("/randomness?ec_point=%s", validPoint))
-	code, resp = makeReq(getRandomnessHandler, req)
-	if !validPointRegexp.MatchString(resp) {
-		t.Errorf("Server's response (%q) doesn't look like a valid point.", resp)
+	code, resp = makeReq(getRandomnessHandler, validReq)
+	var r randResponse
+	if err := json.NewDecoder(strings.NewReader(resp)).Decode(&r); err != nil {
+		t.Errorf("Failed to unmarshal server's JSON response: %s", err)
 	}
 	if code != http.StatusOK {
 		t.Errorf("Expected HTTP code %d but got %d.", http.StatusOK, code)
 	}
 
 	// Ensure that the server is case insensitive.
-	req.URL = u(fmt.Sprintf("/randomness?ec_point=%s", strings.ToUpper(validPoint)))
-	code, resp = makeReq(getRandomnessHandler, req)
-	if !validPointRegexp.MatchString(resp) {
-		t.Errorf("Server's response (%q) doesn't look like a valid point.", resp)
-	}
+	upperCase := strings.ToUpper(validPayload)
+	upperReq := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(upperCase))
+	code, resp = makeReq(getRandomnessHandler, upperReq)
+	fmt.Println(resp)
 	if code != http.StatusOK {
 		t.Errorf("Expected HTTP code %d but got %d.", http.StatusOK, code)
 	}
