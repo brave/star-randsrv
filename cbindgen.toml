@@ -1,0 +1,2 @@
+# Output C bindings for compatibility with more languages.
+language = "C"
