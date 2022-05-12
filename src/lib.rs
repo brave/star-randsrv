@@ -1,6 +1,6 @@
 //! Foreign-function interface to the ppoprf randomness implementation
 //!
-//! This implements a C api so services can easily embed support.
+//! This implements a C api so services can embed support.
 //!
 
 use ppoprf::ppoprf;
@@ -18,13 +18,21 @@ pub struct RandomnessServer {
 /// the same allocator. The handle should be passed to the correspoding
 /// randomness_server_release() function to release the associated
 /// memory.
+///
+/// If initialization of the service instance fails, a null pointer
+/// is returned. The caller should check for this an handle the error
+/// accordingly.
 // FIXME: Pass a [u8] and length for the md initialization.
 #[no_mangle]
 pub extern "C" fn randomness_server_create() -> *mut RandomnessServer {
-    let test_mds = vec!["t".into()];
-    let inner = ppoprf::Server::new(&test_mds);
-    let server = Box::new(RandomnessServer { inner });
-    Box::into_raw(server)
+    let test_mds = vec![0u8];
+    if let Ok(inner) = ppoprf::Server::new(test_mds) {
+        let server = Box::new(RandomnessServer { inner });
+        Box::into_raw(server)
+    } else {
+        // Server creation failed; return nullptr.
+        std::ptr::null_mut()
+    }
 }
 
 /// Release memory associated with a server instance.
@@ -51,16 +59,15 @@ pub unsafe extern "C" fn randomness_server_release(ptr: *mut RandomnessServer) {
 /// struct, such as is returned by randomness_server_create().
 ///
 /// The `input` and `output` arguments must point to accessible areas
-/// of memory with
-/// the correct amount of space available.
+/// of memory with the correct amount of space available.
 #[no_mangle]
 pub unsafe extern "C" fn randomness_server_eval(
     ptr: *const RandomnessServer,
     input: *const u8,
-    md_index: usize,
+    md: u8,
     verifiable: bool,
     output: *mut u8,
-) {
+) -> bool {
     // Verify arguments.
     assert!(!ptr.is_null());
     assert!(!input.is_null());
@@ -70,18 +77,22 @@ pub unsafe extern "C" fn randomness_server_eval(
     let server = &(*ptr).inner;
     // Wrap the provided compressed Ristretto point in the expected type.
     // Unfortunately from_slice() copies the data here.
-    let point = {
-        let bytes = std::slice::from_raw_parts(input, ppoprf::COMPRESSED_POINT_LEN);
-        ppoprf::CompressedRistretto::from_slice(bytes)
-    };
-    // Evaluate the requested point.
-    let result = server.eval(&point, md_index, verifiable);
-    // Copy the resulting point into the output buffer.
-    std::ptr::copy_nonoverlapping(
-        result.output.as_bytes().as_ptr(),
-        output,
-        ppoprf::COMPRESSED_POINT_LEN,
-    );
+    let input = std::slice::from_raw_parts(input, ppoprf::COMPRESSED_POINT_LEN);
+    if let Ok(point) = serde_json::from_slice(input) {
+        // Evaluate the requested point.
+        if let Ok(result) = server.eval(&point, md, verifiable) {
+            // Copy the resulting point into the output buffer.
+            std::ptr::copy_nonoverlapping(
+                result.output.as_bytes().as_ptr(),
+                output,
+                ppoprf::COMPRESSED_POINT_LEN,
+            );
+            // success
+            return true;
+        }
+    }
+    // Earlier code failed.
+    false
 }
 
 /// Puncture the given md value from the PPOPRF.
@@ -91,16 +102,13 @@ pub unsafe extern "C" fn randomness_server_eval(
 /// The `ptr` argument must point to a valid RandomnessServer state
 /// struct, such as is returned by randomness_server_create().
 #[no_mangle]
-pub unsafe extern "C" fn randomness_server_puncture(ptr: *mut RandomnessServer, md: u8) {
+pub unsafe extern "C" fn randomness_server_puncture(ptr: *mut RandomnessServer, md: u8) -> bool {
     // Convert our *const to a &ppoprf::Server without taking ownership.
     assert!(!ptr.is_null());
     let server = &mut (*ptr).inner;
 
-    // The ffi signature takes a u8 by value, but the underlying
-    // api wants a slice to allow more than 8 bits of metadata tag.
-    let md_vec = vec![md];
     // Call correct function.
-    server.puncture(&md_vec);
+    server.puncture(md).is_ok()
 }
 
 #[cfg(test)]
