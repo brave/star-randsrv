@@ -1,5 +1,5 @@
 [package]
-name = "sta-ppoprf-ffi"
+name = "star-ppoprf-ffi"
 version = "0.1.0"
 authors = ["Ralph Giles <rgiles@brave.com>"]
 description = "C API wrapper for the STAR randomness server"

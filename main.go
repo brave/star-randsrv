@@ -1,9 +1,9 @@
 package main
 
 /*
-#cgo LDFLAGS: -L sta-rs/target/release -lffi -lpthread -ldl -static
-#cgo CFLAGS: -I sta-rs/ppoprf/ffi/include -O3
-#include "sta-rs/ppoprf/ffi/include/ppoprf.h"
+#cgo LDFLAGS: -L target/release -lstar_ppoprf_ffi -lpthread -ldl -static
+#cgo CFLAGS: -I include -O3
+#include "ppoprf.h"
 */
 import "C"
 
@@ -146,7 +146,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 			input = []byte(marshalledPoint)
 			C.randomness_server_eval(srv.raw,
 				(*C.uint8_t)(unsafe.Pointer(&input[0])),
-				(C.ulong)(md),
+				(C.uint8_t)(md),
 				(C.bool)(verifiable),
 				(*C.uint8_t)(unsafe.Pointer(&output[0])))
 			resp.Points = append(resp.Points, fmt.Sprintf("%x", output))
@@ -171,7 +171,7 @@ func main() {
 			SOCKSProxy: "socks5://127.0.0.1:1080",
 			FQDN:       "nitro.nymity.ch",
 			Port:       8080,
-			Debug:      false,
+			Debug:      true,
 			UseACME:    false,
 		},
 	)
