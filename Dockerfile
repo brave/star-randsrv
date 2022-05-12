@@ -2,19 +2,19 @@
 FROM rust:1.60 as rust-builder
 
 WORKDIR /src/
-COPY sta-rs ./sta-rs
+COPY . .
 # The '--locked' argument is important for reproducibility because it ensures
 # that we use specific dependencies.
-RUN cd sta-rs/ppoprf/ffi && cargo build --locked --release
+RUN cargo build --locked --release
 
 # Take the compiled sta-rs library (specifically, the object and header file),
 # and use it to build star-randsrv; again, in a builder container.
 FROM golang:1.18 as go-builder
 
 WORKDIR /src/
-RUN mkdir -p ./sta-rs/target/release ./sta-rs/ppoprf/ffi/include
-COPY --from=rust-builder /src/sta-rs/ppoprf/ffi/include/ppoprf.h ./sta-rs/ppoprf/ffi/include
-COPY --from=rust-builder /src/sta-rs/target/release/libffi.a ./sta-rs/target/release
+RUN mkdir -p ./target/release ./include
+COPY --from=rust-builder /src/include/ppoprf.h ./include
+COPY --from=rust-builder /src/target/release/libstar_ppoprf_ffi.a ./target/release
 
 COPY *.go go.mod go.sum ./
 RUN go mod download
