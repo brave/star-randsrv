@@ -9,6 +9,7 @@ all: test lint $(binary)
 
 test: $(godeps) $(stardeps)
 	go test -cover ./...
+	cargo test
 
 lint:
 	golangci-lint run ./...
