@@ -13,6 +13,8 @@ test: $(godeps) $(stardeps)
 
 lint:
 	golangci-lint run ./...
+	cargo clippy
+	cargo audit
 
 image:
 	$(eval IMAGE=$(shell ko publish --local . 2>/dev/null))
