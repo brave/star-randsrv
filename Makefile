@@ -3,15 +3,18 @@
 binary = star-randsrv
 image = $(binary):latest
 godeps = *.go go.mod go.sum
-stardeps = sta-rs sta-rs/ppoprf/ffi/include/ppoprf.h sta-rs/target/release/libffi.a
+stardeps = include/ppoprf.h target/release/libstar_ppoprf_ffi.a
 
 all: test lint $(binary)
 
 test: $(godeps) $(stardeps)
 	go test -cover ./...
+	cargo test
 
 lint:
 	golangci-lint run ./...
+	cargo clippy
+	cargo audit
 
 image:
 	$(eval IMAGE=$(shell ko publish --local . 2>/dev/null))
@@ -28,7 +31,7 @@ eif: image
 	@echo "Showing enclave logs."
 	nitro-cli console --enclave-id $$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveID')
 
-docker: sta-rs
+docker:
 	@docker run \
 		-v $(PWD):/workspace \
 		--network=host \
@@ -45,11 +48,9 @@ docker: sta-rs
 $(binary): $(godeps) $(stardeps)
 	go build -o $(binary)
 
-sta-rs:
-	git clone --branch ppoprf-ffi https://github.com/NullHypothesis/sta-rs
-
-sta-rs/ppoprf/ffi/include/ppoprf.h sta-rs/target/release/libffi.a:
-	cd sta-rs/ppoprf/ffi && cargo build --release
+$(stardeps): Cargo.toml build.rs src/lib.rs cbindgen.toml
+	cargo build --release
 
 clean:
 	@rm -f $(binary)
+	@cargo clean

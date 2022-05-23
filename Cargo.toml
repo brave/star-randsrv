@@ -1,0 +1,17 @@
+[package]
+name = "star-ppoprf-ffi"
+version = "0.1.0"
+authors = ["Ralph Giles <rgiles@brave.com>"]
+description = "C API wrapper for the STAR randomness server"
+edition = "2018"
+
+[lib]
+crate-type = [ "staticlib" ]
+
+[dependencies]
+ppoprf = { git = "https://github.com/brave/sta-rs", rev = "128e040348b6ec52d2467ff6183d35bd1c044dd6" }
+curve25519-dalek = "3.2.0"
+serde_json = "1.0.80"
+
+[build-dependencies]
+cbindgen = "0.20.0"
