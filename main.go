@@ -171,7 +171,7 @@ func main() {
 			SOCKSProxy: "socks5://127.0.0.1:1080",
 			FQDN:       "nitro.nymity.ch",
 			Port:       8080,
-			Debug:      true,
+			Debug:      false,
 			UseACME:    false,
 		},
 	)
