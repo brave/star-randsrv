@@ -24,9 +24,9 @@ import (
 
 	// This module must be imported first because of its side effects of
 	// seeding our system entropy pool.
-	_ "github.com/brave-experiments/nitro-enclave-utils/randseed"
+	_ "github.com/brave-experiments/nitriding/randseed"
 
-	nitro "github.com/brave-experiments/nitro-enclave-utils"
+	"github.com/brave-experiments/nitriding"
 	"github.com/bwesterb/go-ristretto"
 )
 
@@ -166,8 +166,8 @@ func main() {
 	}
 	elog.Println("Started randomness server.")
 
-	enclave := nitro.NewEnclave(
-		&nitro.Config{
+	enclave := nitriding.NewEnclave(
+		&nitriding.Config{
 			SOCKSProxy: "socks5://127.0.0.1:1080",
 			FQDN:       "nitro.nymity.ch",
 			Port:       8080,
