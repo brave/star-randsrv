@@ -111,6 +111,27 @@ pub unsafe extern "C" fn randomness_server_puncture(ptr: *mut RandomnessServer, 
     server.puncture(md).is_ok()
 }
 
+/// # Safety
+///
+/// The `ptr` argument must point to a valid RandomnessServer state
+/// struct, such as is returned by randomness_server_create().
+#[no_mangle]
+pub unsafe extern "C" fn randomness_server_get_public_key(ptr: *const RandomnessServer, output: *mut u8) -> usize {
+    // Convert our *const to a &ppoprf::Server without taking ownership.
+    assert!(!ptr.is_null());
+    let server = &(*ptr).inner;
+
+    if let Ok(data) = server.get_public_key().serialize_to_bincode() {
+        std::ptr::copy_nonoverlapping(
+            data.as_ptr(),
+            output,
+            data.len()
+        );
+        return data.len();
+    }
+    0
+}
+
 #[cfg(test)]
 mod tests {
     //! Unit tests for the ppoprf foreign-function interface
