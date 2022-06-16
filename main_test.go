@@ -15,12 +15,11 @@ import (
 var (
 	// A valid EC point consists of base64.
 	validPoint = "gpfxPFUTfJvKdD6x5G74VD9Bxdb3efsHYJN0d7vu0XE="
-	oneWeek    = time.Hour * 24 * 7
 )
 
 func makeReq(getHandler func(*Server) http.HandlerFunc, req *http.Request) (int, string) {
 	var handler http.HandlerFunc
-	srv, _, err := NewServer()
+	srv, err := NewServer(defaultEpochLen)
 	if err != nil {
 		log.Fatalf("Failed to create randomness server: %s", err)
 	}
@@ -39,6 +38,50 @@ func makeReq(getHandler func(*Server) http.HandlerFunc, req *http.Request) (int,
 	return res.StatusCode, strings.TrimSpace(string(data))
 }
 
+func TestEpochLoop(t *testing.T) {
+	var origMd, newMd uint8
+	srv, _ := NewServer(time.Millisecond)
+	origMd = srv.md
+	// Sleep until the server had a chance to switch epochs.
+	time.Sleep(time.Millisecond * 10)
+	newMd = srv.md
+
+	if origMd == newMd {
+		t.Fatal("Expected epoch rotation but md values are identical.")
+	}
+}
+
+func TestPubKeyRotation(t *testing.T) {
+	var pubKey1, pubKey2 [serializedPkBufferSize]byte
+	srv, _ := NewServer(defaultEpochLen)
+	copy(pubKey1[:], srv.pubKey)
+
+	// Re-initialize the randomness server, which will result in a new (and
+	// therefore different) public key.
+	srv.init()
+	copy(pubKey2[:], srv.pubKey)
+
+	if pubKey1 == pubKey2 {
+		t.Fatal("Public keys are identical despite re-initializing server.")
+	}
+}
+
+func TestPuncture(t *testing.T) {
+	var err error
+	srv, _ := NewServer(defaultEpochLen)
+
+	for i := uint8(0); i < maxEpoch; i++ {
+		if err = srv.puncture(); err != nil {
+			t.Fatalf("Failed to puncture epoch: %s", err)
+		}
+	}
+	// The next call should result in an errEpochExhausted.
+	err = srv.puncture()
+	if err.Error() != errEpochExhausted {
+		t.Fatalf("Expected error %q but got %q.", errEpochExhausted, err)
+	}
+}
+
 func TestEpoch(t *testing.T) {
 	var ts time.Time
 	var e epoch
@@ -53,7 +96,7 @@ func TestEpoch(t *testing.T) {
 		if e != epoch(i) {
 			t.Errorf("Expected epoch %d but got %d for ts %s.", epoch(i), e, ts)
 		}
-		ts = ts.Add(oneWeek)
+		ts = ts.Add(defaultEpochLen)
 		if nextEpochTime != ts {
 			t.Errorf("Expected next epoch timestamp %s but got %s.",
 				ts.Format(time.RFC3339Nano), nextEpochTime)
