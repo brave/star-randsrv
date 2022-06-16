@@ -9,7 +9,7 @@ edition = "2018"
 crate-type = [ "staticlib" ]
 
 [dependencies]
-ppoprf = { git = "https://github.com/brave/sta-rs", rev = "128e040348b6ec52d2467ff6183d35bd1c044dd6" }
+ppoprf = { git = "https://github.com/brave/sta-rs", rev = "76ee2d531a5732ac6712abcd85269e9b66acce86" }
 curve25519-dalek = "3.2.0"
 serde_json = "1.0.80"
 

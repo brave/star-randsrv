@@ -13,14 +13,14 @@ import (
 )
 
 var (
-	// A valid EC point consists of 64 hex digits.
-	validPoint = "f6414bfccc156551d641260ce403992c5d5b0976aca8a72541fda40e8337d867"
+	// A valid EC point consists of base64.
+	validPoint = "gpfxPFUTfJvKdD6x5G74VD9Bxdb3efsHYJN0d7vu0XE="
 	oneWeek    = time.Hour * 24 * 7
 )
 
 func makeReq(getHandler func(*Server) http.HandlerFunc, req *http.Request) (int, string) {
 	var handler http.HandlerFunc
-	srv, err := NewServer()
+	srv, _, err := NewServer()
 	if err != nil {
 		log.Fatalf("Failed to create randomness server: %s", err)
 	}
@@ -42,24 +42,22 @@ func makeReq(getHandler func(*Server) http.HandlerFunc, req *http.Request) (int,
 func TestEpoch(t *testing.T) {
 	var ts time.Time
 	var e epoch
-	// Jan 1, 2020 falls on a Wednesday, so according to the ISO week date
-	// system, it's week 1 (as opposed to week 52 or 53 of the previous year).
-	ts, _ = time.Parse(time.RFC3339, "2020-01-01T00:00:00Z")
+	var nextEpochTime time.Time
+	// Jan 1, 2022, the first epoch
+	ts, _ = time.Parse(time.RFC3339, "2022-01-01T00:00:00Z")
 
-	for i := 1; i <= 52; i++ {
-		e = getEpoch(ts)
+	firstEpochTime, _ := time.Parse(time.RFC3339, firstEpochTimestamp)
+
+	for i := 0; i <= 500; i++ {
+		e, nextEpochTime = getEpoch(firstEpochTime, ts)
 		if e != epoch(i) {
 			t.Errorf("Expected epoch %d but got %d for ts %s.", epoch(i), e, ts)
 		}
 		ts = ts.Add(oneWeek)
-	}
-
-	// Check the edge case of the last second of the year.  2020 is a leap
-	// year, so it has 53 weeks.
-	ts, _ = time.Parse(time.RFC3339, "2020-12-31T23:59:59Z")
-	e = getEpoch(ts)
-	if e != epoch(53) {
-		t.Errorf("Expected epoch %d but got %d for ts %s.", epoch(53), e, ts)
+		if nextEpochTime != ts {
+			t.Errorf("Expected next epoch timestamp %s but got %s.",
+				ts.Format(time.RFC3339Nano), nextEpochTime)
+		}
 	}
 }
 
@@ -71,9 +69,9 @@ func TestHTTPHandler(t *testing.T) {
 	//   p.Rand()
 	//   fmt.Printf("%x\n", p.Bytes())
 	validPayload := `{"points": [
-		"90aaa9713616607aed7a0eb685511c5862e4c3a2fecf21a748bce5b33077492e",
-		"a4e0b94d2cb2d93ac397caaf0bb1798224fbec29da4ebce6cd134d3970d2de0e",
-		"8297f13c55137c9bca743eb1e46ef8543f41c5d6f779fb0760937477bbeed171"
+		"kKqpcTYWYHrteg62hVEcWGLkw6L+zyGnSLzlszB3SS4=",
+		"pOC5TSyy2TrDl8qvC7F5giT77CnaTrzmzRNNOXDS3g4=",
+		"gpfxPFUTfJvKdD6x5G74VD9Bxdb3efsHYJN0d7vu0XE="
 	]}`
 	validReq := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(validPayload))
 
@@ -124,15 +122,6 @@ func TestHTTPHandler(t *testing.T) {
 	if err := json.NewDecoder(strings.NewReader(resp)).Decode(&r); err != nil {
 		t.Errorf("Failed to unmarshal server's JSON response: %s", err)
 	}
-	if code != http.StatusOK {
-		t.Errorf("Expected HTTP code %d but got %d.", http.StatusOK, code)
-	}
-
-	// Ensure that the server is case insensitive.
-	upperCase := strings.ToUpper(validPayload)
-	upperReq := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(upperCase))
-	code, resp = makeReq(getRandomnessHandler, upperReq)
-	fmt.Println(resp)
 	if code != http.StatusOK {
 		t.Errorf("Expected HTTP code %d but got %d.", http.StatusOK, code)
 	}
