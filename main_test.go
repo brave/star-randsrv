@@ -161,7 +161,7 @@ func TestHTTPHandler(t *testing.T) {
 
 	// Finally, show mercy and make a valid request.
 	code, resp = makeReq(getRandomnessHandler, validReq)
-	var r randResponse
+	var r srvRandResponse
 	if err := json.NewDecoder(strings.NewReader(resp)).Decode(&r); err != nil {
 		t.Errorf("Failed to unmarshal server's JSON response: %s", err)
 	}

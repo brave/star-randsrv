@@ -52,14 +52,15 @@ const (
 
 type epoch uint8
 
-type randRequest struct {
+type cliRandRequest struct {
 	Points []string `json:"points"`
 }
 
 // The response has the same format as the request.
-type randResponse randRequest
+type srvRandResponse cliRandRequest
 
-type serverInfoResponse struct {
+// The server's response to 'GET /info' requests.
+type srvInfoResponse struct {
 	PublicKey     []byte `json:"publicKey"`
 	CurrentEpoch  epoch  `json:"currentEpoch"`
 	NextEpochTime string `json:"nextEpochTime"`
@@ -197,7 +198,7 @@ func getServerInfo(srv *Server) http.HandlerFunc {
 	firstEpochTime, _ := time.Parse(time.RFC3339, firstEpochTimestamp)
 	return func(w http.ResponseWriter, r *http.Request) {
 		currentEpoch, nextEpochTime := getEpoch(firstEpochTime, time.Now())
-		resp := serverInfoResponse{
+		resp := srvInfoResponse{
 			PublicKey:     srv.pubKey,
 			CurrentEpoch:  currentEpoch,
 			NextEpochTime: nextEpochTime.Format(time.RFC3339),
@@ -213,8 +214,8 @@ func getServerInfo(srv *Server) http.HandlerFunc {
 // server object into
 func getRandomnessHandler(srv *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req randRequest
-		var resp randResponse
+		var req cliRandRequest
+		var resp srvRandResponse
 		var input []byte
 		var verifiable bool = false
 		var output [32]byte
