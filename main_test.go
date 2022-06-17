@@ -39,7 +39,7 @@ func makeReq(getHandler func(*Server) http.HandlerFunc, req *http.Request) (int,
 }
 
 func TestEpochLoop(t *testing.T) {
-	var origMd, newMd uint8
+	var origMd, newMd epoch
 	srv, _ := NewServer(time.Millisecond)
 	origMd = srv.md
 	// Sleep until the server had a chance to switch epochs.
@@ -70,7 +70,7 @@ func TestPuncture(t *testing.T) {
 	var err error
 	srv, _ := NewServer(defaultEpochLen)
 
-	for i := uint8(0); i < maxEpoch; i++ {
+	for i := epoch(0); i < maxEpoch; i++ {
 		if err = srv.puncture(); err != nil {
 			t.Fatalf("Failed to puncture epoch: %s", err)
 		}

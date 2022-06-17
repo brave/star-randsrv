@@ -44,7 +44,7 @@ const (
 	defaultEpochLen        = time.Hour * 24 * 7
 	serializedPkBufferSize = 16384
 	// The last epoch, before our counter overflows
-	maxEpoch = ^uint8(0)
+	maxEpoch = ^epoch(0)
 )
 
 type epoch uint8
@@ -85,7 +85,7 @@ type Server struct {
 	sync.Mutex
 	raw    *C.RandomnessServer
 	noCopy noCopy //nolint:structcheck
-	md     uint8
+	md     epoch
 	done   chan bool
 	pubKey []byte
 }
