@@ -41,11 +41,9 @@ var (
 
 const (
 	// January 1, 2022
-	firstEpochTimestamp string = "2022-01-01T00:00:00.000Z"
-	defaultEpochLen            = time.Hour * 24 * 7
-	// One week
-	epochLengthTimeSec     int64 = 7 * 24 * 3600
-	serializedPkBufferSize uint  = 16384
+	firstEpochTimestamp    string = "2022-01-01T00:00:00.000Z"
+	defaultEpochLen               = time.Hour * 24 * 7
+	serializedPkBufferSize uint   = 16384
 	// The last epoch, before our counter overflows
 	maxEpoch = ^uint8(0)
 )
@@ -184,10 +182,12 @@ func NewServer(epochLen time.Duration) (*Server, error) {
 
 // getEpoch returns the current epoch for the given timestamp.
 func getEpoch(firstEpochTime time.Time, refTime time.Time) (epoch, time.Time) {
+	epochLenSec := int64(defaultEpochLen.Seconds())
+
 	currentSecondsSinceFirstEpoch := refTime.Unix() - firstEpochTime.Unix()
-	epochsSinceFirstEpoch := currentSecondsSinceFirstEpoch / epochLengthTimeSec
+	epochsSinceFirstEpoch := currentSecondsSinceFirstEpoch / epochLenSec
 	nextEpochTime := time.Unix(firstEpochTime.Unix()+
-		(epochLengthTimeSec*(epochsSinceFirstEpoch+1)), 0)
+		(epochLenSec*(epochsSinceFirstEpoch+1)), 0)
 	nextEpochTime = nextEpochTime.In(time.UTC)
 	currentEpoch := epochsSinceFirstEpoch % 256
 	return epoch(currentEpoch), nextEpochTime
