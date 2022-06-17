@@ -40,7 +40,6 @@ var (
 )
 
 const (
-	// January 1, 2022
 	firstEpochTimestamp    = "2022-01-01T00:00:00.000Z"
 	defaultEpochLen        = time.Hour * 24 * 7
 	serializedPkBufferSize = 16384
@@ -83,12 +82,12 @@ func (*noCopy) Unlock() {}
 
 // Server represents a PPOPRF randomness server instance.
 type Server struct {
-	sync.Mutex // TODO: Do we really need a mutex?
-	raw        *C.RandomnessServer
-	noCopy     noCopy //nolint:structcheck
-	md         uint8
-	done       chan bool
-	pubKey     []byte
+	sync.Mutex
+	raw    *C.RandomnessServer
+	noCopy noCopy //nolint:structcheck
+	md     uint8
+	done   chan bool
+	pubKey []byte
 }
 
 // epochLoop periodically punctures the randomness server's PPOPRF and -- if
@@ -180,7 +179,9 @@ func NewServer(epochLen time.Duration) (*Server, error) {
 	return server, nil
 }
 
-// getEpoch returns the current epoch for the given timestamp.
+// getEpoch takes as input 1) the time at which we begin counting epochs and 2)
+// the current time.  The function then returns 1) the 8-bit epoch number for
+// the current time and 2) the time at which the next epoch begins.
 func getEpoch(firstEpochTime time.Time, refTime time.Time) (epoch, time.Time) {
 	epochLenSec := int64(defaultEpochLen.Seconds())
 
@@ -193,7 +194,8 @@ func getEpoch(firstEpochTime time.Time, refTime time.Time) (epoch, time.Time) {
 	return epoch(currentEpoch), nextEpochTime
 }
 
-// getServerInfo returns the current epoch info and public key.
+// getServerInfo returns an http.HandlerFunc that returns the current epoch
+// info and public key to the client.
 func getServerInfo(srv *Server) http.HandlerFunc {
 	firstEpochTime, _ := time.Parse(time.RFC3339, firstEpochTimestamp)
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -211,7 +213,7 @@ func getServerInfo(srv *Server) http.HandlerFunc {
 }
 
 // getRandomnessHandler returns an http.HandlerFunc so that we can pass our
-// server object into
+// server object into.
 func getRandomnessHandler(srv *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req cliRandRequest
