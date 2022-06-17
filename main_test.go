@@ -58,7 +58,7 @@ func TestPubKeyRotation(t *testing.T) {
 
 	// Re-initialize the randomness server, which will result in a new (and
 	// therefore different) public key.
-	srv.init()
+	_ = srv.init()
 	copy(pubKey2[:], srv.pubKey)
 
 	if pubKey1 == pubKey2 {
