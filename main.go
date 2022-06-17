@@ -41,9 +41,9 @@ var (
 
 const (
 	// January 1, 2022
-	firstEpochTimestamp    string = "2022-01-01T00:00:00.000Z"
-	defaultEpochLen               = time.Hour * 24 * 7
-	serializedPkBufferSize uint   = 16384
+	firstEpochTimestamp    = "2022-01-01T00:00:00.000Z"
+	defaultEpochLen        = time.Hour * 24 * 7
+	serializedPkBufferSize = 16384
 	// The last epoch, before our counter overflows
 	maxEpoch = ^uint8(0)
 )
