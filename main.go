@@ -156,6 +156,9 @@ func (srv *Server) puncture() error {
 }
 
 func serverFinalizer(server *Server) {
+	server.Lock()
+	defer server.Unlock()
+
 	C.randomness_server_release(server.raw)
 	server.raw = nil
 }
@@ -198,11 +201,13 @@ func getServerInfo(srv *Server) http.HandlerFunc {
 	firstEpochTime, _ := time.Parse(time.RFC3339, firstEpochTimestamp)
 	return func(w http.ResponseWriter, r *http.Request) {
 		currentEpoch, nextEpochTime := getEpoch(firstEpochTime, time.Now())
+		srv.Lock()
 		resp := srvInfoResponse{
 			PublicKey:     srv.pubKey,
 			CurrentEpoch:  currentEpoch,
 			NextEpochTime: nextEpochTime.Format(time.RFC3339),
 		}
+		srv.Unlock()
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -256,11 +261,13 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 			}
 
 			input = []byte(marshalledPoint)
+			srv.Lock()
 			C.randomness_server_eval(srv.raw,
 				(*C.uint8_t)(unsafe.Pointer(&input[0])),
 				(C.uint8_t)(md),
 				(C.bool)(verifiable),
 				(*C.uint8_t)(unsafe.Pointer(&output[0])))
+			srv.Unlock()
 			resp.Points = append(resp.Points, base64.StdEncoding.EncodeToString(output[:]))
 		}
 
