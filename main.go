@@ -58,7 +58,7 @@ type srvRandResponse cliRandRequest
 
 // The server's response to 'GET /info' requests.
 type srvInfoResponse struct {
-	PublicKey     []byte `json:"publicKey"`
+	PublicKey     string `json:"publicKey"`
 	CurrentEpoch  epoch  `json:"currentEpoch"`
 	NextEpochTime string `json:"nextEpochTime"`
 }
@@ -87,7 +87,7 @@ type Server struct {
 	noCopy noCopy //nolint:structcheck
 	md     epoch
 	done   chan bool
-	pubKey []byte
+	pubKey string // Base64-encoded public key.
 }
 
 // epochLoop periodically punctures the randomness server's PPOPRF and -- if
@@ -129,7 +129,7 @@ func (srv *Server) init() error {
 	if pkSize == 0 {
 		return errors.New("failed to get public key")
 	}
-	base64.StdEncoding.Encode(srv.pubKey, pkOutput[:pkSize])
+	srv.pubKey = base64.StdEncoding.EncodeToString(pkOutput[:pkSize])
 
 	elog.Println("(Re-)initialized server instance.")
 
@@ -167,8 +167,7 @@ func serverFinalizer(server *Server) {
 // The instance will generate its own secret key.
 func NewServer(epochLen time.Duration) (*Server, error) {
 	server := &Server{
-		done:   make(chan bool),
-		pubKey: make([]byte, base64.StdEncoding.EncodedLen(int(serializedPkBufferSize))),
+		done: make(chan bool),
 	}
 	if err := server.init(); err != nil {
 		return nil, err
