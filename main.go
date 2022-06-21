@@ -116,7 +116,6 @@ func (srv *Server) init() error {
 	srv.Lock()
 	defer srv.Unlock()
 
-	// FIXME should we runtime.LockOSThread() here?
 	raw := C.randomness_server_create()
 	if raw == nil {
 		return errors.New("failed to create randomness server")
