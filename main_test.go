@@ -86,18 +86,16 @@ func TestPuncture(t *testing.T) {
 func TestEpoch(t *testing.T) {
 	var e epoch
 	var nextEpochTime time.Time
-	firstEpochTime, _ := time.Parse(time.RFC3339, firstEpochTimestamp)
-	refTime := firstEpochTime
+	refTime := firstEpochTs
 
 	for i := 0; i <= 500; i++ {
-		e, nextEpochTime = getEpoch(firstEpochTime, refTime)
+		e, nextEpochTime = getEpoch(defaultEpochLen, firstEpochTs, refTime)
 		if e != epoch(i) {
-			t.Errorf("Expected epoch %d but got %d for timestamp %s.", epoch(i), e, refTime)
+			t.Fatalf("Expected epoch %d but got %d for timestamp %s.", epoch(i), e, refTime)
 		}
 		refTime = refTime.Add(defaultEpochLen)
 		if nextEpochTime != refTime {
-			t.Errorf("Expected next epoch timestamp %s but got %s.",
-				refTime.Format(time.RFC3339Nano), nextEpochTime)
+			t.Fatalf("Expected next epoch timestamp %s but got %s.", refTime, nextEpochTime)
 		}
 	}
 }

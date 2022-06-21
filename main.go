@@ -37,10 +37,11 @@ var (
 	errDecodeECPoint  = "failed to decode EC point"
 	errParseECPoint   = "failed to parse EC point"
 	errEpochExhausted = "epochs are exhausted"
+
+	firstEpochTs, _ = time.Parse(time.RFC3339, "2022-01-01T00:00:00.000Z")
 )
 
 const (
-	firstEpochTimestamp    = "2022-01-01T00:00:00.000Z"
 	defaultEpochLen        = time.Hour * 24 * 7
 	serializedPkBufferSize = 16384
 	// The last epoch, before our counter overflows
@@ -93,6 +94,15 @@ type Server struct {
 // epochLoop periodically punctures the randomness server's PPOPRF and -- if
 // necessary -- re-creates the randomness server instance.
 func (srv *Server) epochLoop(epochLen time.Duration) {
+	// Odds are that the server's start time does not coincide with the next
+	// epoch's start time.  We therefore wait until the next epoch begins, at
+	// which point we begin our epoch rotation loop.
+	now := time.Now().UTC()
+	_, nextEpochTs := getEpoch(epochLen, firstEpochTs, now)
+	diff := nextEpochTs.Sub(now)
+	elog.Printf("Waiting %s until next epoch begins at %s.", diff, nextEpochTs)
+	<-time.NewTicker(diff).C
+
 	ticker := time.NewTicker(epochLen)
 	elog.Println("Starting epoch loop.")
 	for {
@@ -180,27 +190,27 @@ func NewServer(epochLen time.Duration) (*Server, error) {
 	return server, nil
 }
 
-// getEpoch takes as input 1) the time at which we begin counting epochs and 2)
-// the current time.  The function then returns 1) the 8-bit epoch number for
-// the current time and 2) the time at which the next epoch begins.
-func getEpoch(firstEpochTime time.Time, refTime time.Time) (epoch, time.Time) {
-	epochLenSec := int64(defaultEpochLen.Seconds())
+// getEpoch takes as input 1) the epoch length, 2) the time at which we begin
+// counting epochs and 3) the current time.  The function then returns 1) the
+// 8-bit epoch number for the current time and 2) the time at which the next
+// epoch begins.
+func getEpoch(epochLen time.Duration, firstEpochTime time.Time, refTime time.Time) (epoch, time.Time) {
+	epochLenMs := epochLen.Milliseconds()
+	msSinceFirstEpoch := refTime.UnixMilli() - firstEpochTime.UnixMilli()
+	epochsSinceFirstEpoch := msSinceFirstEpoch / epochLenMs
 
-	currentSecondsSinceFirstEpoch := refTime.Unix() - firstEpochTime.Unix()
-	epochsSinceFirstEpoch := currentSecondsSinceFirstEpoch / epochLenSec
-	nextEpochTime := time.Unix(firstEpochTime.Unix()+
-		(epochLenSec*(epochsSinceFirstEpoch+1)), 0)
+	nextEpochTime := time.UnixMilli(firstEpochTime.UnixMilli() +
+		(epochLenMs * (epochsSinceFirstEpoch + 1)))
 	nextEpochTime = nextEpochTime.In(time.UTC)
-	currentEpoch := epochsSinceFirstEpoch % 256
-	return epoch(currentEpoch), nextEpochTime
+	curEpoch := epochsSinceFirstEpoch % 256
+	return epoch(curEpoch), nextEpochTime
 }
 
 // getServerInfo returns an http.HandlerFunc that returns the current epoch
 // info and public key to the client.
 func getServerInfo(srv *Server) http.HandlerFunc {
-	firstEpochTime, _ := time.Parse(time.RFC3339, firstEpochTimestamp)
 	return func(w http.ResponseWriter, r *http.Request) {
-		currentEpoch, nextEpochTime := getEpoch(firstEpochTime, time.Now())
+		currentEpoch, nextEpochTime := getEpoch(defaultEpochLen, firstEpochTs, time.Now().UTC())
 		srv.Lock()
 		resp := srvInfoResponse{
 			PublicKey:     srv.pubKey,
