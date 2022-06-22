@@ -42,8 +42,11 @@ var (
 )
 
 const (
-	defaultEpochLen        = time.Hour * 24 * 7
-	serializedPkBufferSize = 16384
+	defaultEpochLen = time.Hour * 24 * 7
+	// We need room for 256 epochs (each having a 32-byte key), the base key
+	// (32 bytes), the epoch values labelling each key (256 bytes), the epoch
+	// count (1-8 bytes), and possibly some buffer lengths.
+	serializedPkBufferSize = 10240
 	// The last epoch, before our counter overflows
 	maxEpoch = ^epoch(0)
 )
