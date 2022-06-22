@@ -30,33 +30,38 @@ import (
 )
 
 var (
-	elog             = log.New(os.Stderr, "star-randsrv: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
-	errNoReqBody     = "no request body"
-	errBadJSON       = "failed to decode JSON"
-	errNoECPoints    = "no EC points in request body"
-	errDecodeECPoint = "failed to decode EC point"
-	errParseECPoint  = "failed to parse EC point"
+	elog              = log.New(os.Stderr, "star-randsrv: ", log.Ldate|log.Ltime|log.LUTC|log.Lshortfile)
+	errNoReqBody      = "no request body"
+	errBadJSON        = "failed to decode JSON"
+	errNoECPoints     = "no EC points in request body"
+	errDecodeECPoint  = "failed to decode EC point"
+	errParseECPoint   = "failed to parse EC point"
+	errEpochExhausted = "epochs are exhausted"
+
+	firstEpochTs, _ = time.Parse(time.RFC3339, "2022-01-01T00:00:00.000Z")
 )
 
 const (
-	// January 1, 2022
-	firstEpochTimestamp string = "2022-01-01T00:00:00.000Z"
-	// One week
-	epochLengthTimeSec int64 = 7 * 24 * 3600
-
-	serializedPkBufferSize uint = 16384
+	defaultEpochLen = time.Hour * 24 * 7
+	// We need room for 256 epochs (each having a 32-byte key), the base key
+	// (32 bytes), the epoch values labelling each key (256 bytes), the epoch
+	// count (1-8 bytes), and possibly some buffer lengths.
+	serializedPkBufferSize = 10240
+	// The last epoch, before our counter overflows
+	maxEpoch = ^epoch(0)
 )
 
 type epoch uint8
 
-type randRequest struct {
+type cliRandRequest struct {
 	Points []string `json:"points"`
 }
 
 // The response has the same format as the request.
-type randResponse randRequest
+type srvRandResponse cliRandRequest
 
-type serverInfoResponse struct {
+// The server's response to 'GET /info' requests.
+type srvInfoResponse struct {
 	PublicKey     string `json:"publicKey"`
 	CurrentEpoch  epoch  `json:"currentEpoch"`
 	NextEpochTime string `json:"nextEpochTime"`
@@ -81,12 +86,92 @@ func (*noCopy) Unlock() {}
 
 // Server represents a PPOPRF randomness server instance.
 type Server struct {
-	sync.Mutex // TODO: Do we really need a mutex?
-	raw        *C.RandomnessServer
-	noCopy     noCopy //nolint:structcheck
+	sync.Mutex
+	raw    *C.RandomnessServer
+	noCopy noCopy //nolint:structcheck
+	md     epoch
+	done   chan bool
+	pubKey string // Base64-encoded public key.
+}
+
+// epochLoop periodically punctures the randomness server's PPOPRF and -- if
+// necessary -- re-creates the randomness server instance.
+func (srv *Server) epochLoop(epochLen time.Duration) {
+	// Odds are that the server's start time does not coincide with the next
+	// epoch's start time.  We therefore wait until the next epoch begins, at
+	// which point we begin our epoch rotation loop.
+	now := time.Now().UTC()
+	_, nextEpochTs := getEpoch(epochLen, firstEpochTs, now)
+	diff := nextEpochTs.Sub(now)
+	elog.Printf("Waiting %s until next epoch begins at %s.", diff, nextEpochTs)
+	<-time.NewTicker(diff).C
+
+	ticker := time.NewTicker(epochLen)
+	elog.Println("Starting epoch loop.")
+	for {
+		select {
+		case <-srv.done:
+			return
+		case <-ticker.C:
+			if err := srv.puncture(); err != nil {
+				if err.Error() == errEpochExhausted {
+					if err := srv.init(); err != nil {
+						elog.Fatal("Failed to re-initialize randomness server.")
+					}
+				}
+			}
+		}
+	}
+}
+
+// init (re-)initializes the randomness server instance of the Rust FFI.
+func (srv *Server) init() error {
+	srv.Lock()
+	defer srv.Unlock()
+
+	raw := C.randomness_server_create()
+	if raw == nil {
+		return errors.New("failed to create randomness server")
+	}
+	srv.raw = raw
+
+	var pkOutput [serializedPkBufferSize]byte
+	pkSize := C.randomness_server_get_public_key(
+		srv.raw, (*C.uint8_t)(unsafe.Pointer(&pkOutput[0])))
+	if pkSize == 0 {
+		return errors.New("failed to get public key")
+	}
+	srv.pubKey = base64.StdEncoding.EncodeToString(pkOutput[:pkSize])
+
+	elog.Println("(Re-)initialized server instance.")
+
+	return nil
+}
+
+// puncture punctures the randomness server's PPOPRF.  As part of the
+// puncturing, we're incrementing our epoch counter.  If we're about to exhaust
+// our counter (i.e., an integer overflow is about to happen), we return an
+// error, which signals to the caller that it's time to create a new randomness
+// server instance.
+func (srv *Server) puncture() error {
+	srv.Lock()
+	defer srv.Unlock()
+
+	C.randomness_server_puncture(srv.raw, (C.uint8_t)(srv.md))
+
+	// An epoch is exhausted when our 8-bit counter is about to overflow.
+	if srv.md == maxEpoch {
+		return errors.New(errEpochExhausted)
+	}
+	elog.Printf("Punctured epoch %d.", srv.md)
+	srv.md++
+	return nil
 }
 
 func serverFinalizer(server *Server) {
+	server.Lock()
+	defer server.Unlock()
+
 	C.randomness_server_release(server.raw)
 	server.raw = nil
 }
@@ -95,47 +180,47 @@ func serverFinalizer(server *Server) {
 //
 // FIXME Pass in a list of 8-bit tags defining epochs.
 // The instance will generate its own secret key.
-func NewServer() (*Server, *string, error) {
-	// FIXME should we runtime.LockOSThread() here?
-	raw := C.randomness_server_create()
-	if raw == nil {
-		return nil, nil, errors.New("failed to create randomness server")
+func NewServer(epochLen time.Duration) (*Server, error) {
+	server := &Server{
+		done: make(chan bool),
 	}
-	server := &Server{raw: raw}
+	if err := server.init(); err != nil {
+		return nil, err
+	}
 	runtime.SetFinalizer(server, serverFinalizer)
+	go server.epochLoop(epochLen)
 
-	var pkOutput [serializedPkBufferSize]byte
-	pkSize := C.randomness_server_get_public_key(
-		server.raw, (*C.uint8_t)(unsafe.Pointer(&pkOutput[0])))
-	if pkSize == 0 {
-		return nil, nil, errors.New("failed to get public key")
-	}
-	pk := base64.StdEncoding.EncodeToString(pkOutput[:pkSize])
-
-	return server, &pk, nil
+	return server, nil
 }
 
-// getEpoch returns the current epoch for the given timestamp.
-func getEpoch(firstEpochTime time.Time, refTime time.Time) (epoch, time.Time) {
-	currentSecondsSinceFirstEpoch := refTime.Unix() - firstEpochTime.Unix()
-	epochsSinceFirstEpoch := currentSecondsSinceFirstEpoch / epochLengthTimeSec
-	nextEpochTime := time.Unix(firstEpochTime.Unix()+
-		(epochLengthTimeSec*(epochsSinceFirstEpoch+1)), 0)
+// getEpoch takes as input 1) the epoch length, 2) the time at which we begin
+// counting epochs and 3) the current time.  The function then returns 1) the
+// 8-bit epoch number for the current time and 2) the time at which the next
+// epoch begins.
+func getEpoch(epochLen time.Duration, firstEpochTime time.Time, refTime time.Time) (epoch, time.Time) {
+	epochLenMs := epochLen.Milliseconds()
+	msSinceFirstEpoch := refTime.UnixMilli() - firstEpochTime.UnixMilli()
+	epochsSinceFirstEpoch := msSinceFirstEpoch / epochLenMs
+
+	nextEpochTime := time.UnixMilli(firstEpochTime.UnixMilli() +
+		(epochLenMs * (epochsSinceFirstEpoch + 1)))
 	nextEpochTime = nextEpochTime.In(time.UTC)
-	currentEpoch := epochsSinceFirstEpoch % 256
-	return epoch(currentEpoch), nextEpochTime
+	curEpoch := epochsSinceFirstEpoch % 256
+	return epoch(curEpoch), nextEpochTime
 }
 
-// getServerInfo returns the current epoch info and public key.
-func getServerInfo(pk string) http.HandlerFunc {
-	firstEpochTime, _ := time.Parse(time.RFC3339, firstEpochTimestamp)
+// getServerInfo returns an http.HandlerFunc that returns the current epoch
+// info and public key to the client.
+func getServerInfo(srv *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		currentEpoch, nextEpochTime := getEpoch(firstEpochTime, time.Now())
-		resp := serverInfoResponse{
-			PublicKey:     pk,
+		currentEpoch, nextEpochTime := getEpoch(defaultEpochLen, firstEpochTs, time.Now().UTC())
+		srv.Lock()
+		resp := srvInfoResponse{
+			PublicKey:     srv.pubKey,
 			CurrentEpoch:  currentEpoch,
 			NextEpochTime: nextEpochTime.Format(time.RFC3339),
 		}
+		srv.Unlock()
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -144,11 +229,11 @@ func getServerInfo(pk string) http.HandlerFunc {
 }
 
 // getRandomnessHandler returns an http.HandlerFunc so that we can pass our
-// server object into
+// server object into.
 func getRandomnessHandler(srv *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var req randRequest
-		var resp randResponse
+		var req cliRandRequest
+		var resp srvRandResponse
 		var input []byte
 		var verifiable bool = false
 		var output [32]byte
@@ -189,11 +274,13 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 			}
 
 			input = []byte(marshalledPoint)
+			srv.Lock()
 			C.randomness_server_eval(srv.raw,
 				(*C.uint8_t)(unsafe.Pointer(&input[0])),
 				(C.uint8_t)(md),
 				(C.bool)(verifiable),
 				(*C.uint8_t)(unsafe.Pointer(&output[0])))
+			srv.Unlock()
 			resp.Points = append(resp.Points, base64.StdEncoding.EncodeToString(output[:]))
 		}
 
@@ -205,7 +292,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 }
 
 func main() {
-	srv, pk, err := NewServer()
+	srv, err := NewServer(defaultEpochLen)
 	if err != nil {
 		elog.Fatalf("Failed to create randomness server: %s", err)
 	}
@@ -221,7 +308,7 @@ func main() {
 		},
 	)
 	enclave.AddRoute(http.MethodGet, "/randomness", getRandomnessHandler(srv))
-	enclave.AddRoute(http.MethodGet, "/info", getServerInfo(*pk))
+	enclave.AddRoute(http.MethodGet, "/info", getServerInfo(srv))
 	if err := enclave.Start(); err != nil {
 		elog.Fatalf("Enclave terminated: %v", err)
 	}
