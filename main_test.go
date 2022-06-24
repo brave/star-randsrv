@@ -17,8 +17,9 @@ var (
 	validPoint = "gpfxPFUTfJvKdD6x5G74VD9Bxdb3efsHYJN0d7vu0XE="
 )
 
-func srv(epochLen time.Duration) *Server {
-	srv, err := NewServer(epochLen)
+func srvWithEpochLen(epochLen time.Duration) *Server {
+	srv, err := NewServer(defaultFirstEpochTime, epochLen)
+	srv.epochLen = epochLen
 	if err != nil {
 		log.Fatalf("Failed to create randomness server: %s", err)
 	}
@@ -39,13 +40,13 @@ func makeReq(handler http.HandlerFunc, req *http.Request) (int, string) {
 	return res.StatusCode, strings.TrimSpace(string(data))
 }
 
-func TestEpochLoop(t *testing.T) {
+func TestEpochRotation(t *testing.T) {
 	var origMd, newMd epoch
-	srv, _ := NewServer(time.Millisecond)
-	origMd = srv.md
+	srv := srvWithEpochLen(time.Millisecond)
+	origMd, _ = srv.getEpoch(time.Now().UTC())
 	// Sleep until the server had a chance to switch epochs.
 	time.Sleep(time.Millisecond * 10)
-	newMd = srv.md
+	newMd, _ = srv.getEpoch(time.Now().UTC())
 
 	if origMd == newMd {
 		t.Fatal("Expected epoch rotation but md values are identical.")
@@ -54,7 +55,7 @@ func TestEpochLoop(t *testing.T) {
 
 func TestPubKeyRotation(t *testing.T) {
 	var pubKey1, pubKey2 [serializedPkBufferSize]byte
-	srv, _ := NewServer(defaultEpochLen)
+	srv := srvWithEpochLen(defaultEpochLen)
 	copy(pubKey1[:], srv.pubKey)
 
 	// Re-initialize the randomness server, which will result in a new (and
@@ -69,15 +70,15 @@ func TestPubKeyRotation(t *testing.T) {
 
 func TestPuncture(t *testing.T) {
 	var err error
-	srv, _ := NewServer(defaultEpochLen)
+	srv := srvWithEpochLen(defaultEpochLen)
 
 	for i := epoch(0); i < maxEpoch; i++ {
-		if err = srv.puncture(); err != nil {
+		if err = srv.puncture(i); err != nil {
 			t.Fatalf("Failed to puncture epoch: %s", err)
 		}
 	}
 	// The next call should result in an errEpochExhausted.
-	err = srv.puncture()
+	err = srv.puncture(maxEpoch)
 	if err.Error() != errEpochExhausted {
 		t.Fatalf("Expected error %q but got %q.", errEpochExhausted, err)
 	}
@@ -86,10 +87,11 @@ func TestPuncture(t *testing.T) {
 func TestEpoch(t *testing.T) {
 	var e epoch
 	var nextEpochTime time.Time
-	refTime := firstEpochTs
+	srv := srvWithEpochLen(defaultEpochLen)
+	refTime := defaultFirstEpochTime
 
 	for i := 0; i <= 500; i++ {
-		e, nextEpochTime = getEpoch(defaultEpochLen, firstEpochTs, refTime)
+		e, nextEpochTime = srv.getEpoch(refTime)
 		if e != epoch(i) {
 			t.Fatalf("Expected epoch %d but got %d for timestamp %s.", epoch(i), e, refTime)
 		}
@@ -113,7 +115,7 @@ func TestHTTPHandler(t *testing.T) {
 		"gpfxPFUTfJvKdD6x5G74VD9Bxdb3efsHYJN0d7vu0XE="
 	]}`
 	validReq := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(validPayload))
-	handler := getRandomnessHandler(srv(defaultEpochLen))
+	handler := getRandomnessHandler(srvWithEpochLen(defaultEpochLen))
 
 	// Call the right endpoint but don't provide a request body.
 	emptyReq := httptest.NewRequest(http.MethodPost, "/randomness", nil)
@@ -169,7 +171,7 @@ func TestHTTPHandler(t *testing.T) {
 
 func BenchmarkHTTPHandler(b *testing.B) {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/randomness?ec_point=%s", validPoint), nil)
-	handler := getRandomnessHandler(srv(defaultEpochLen))
+	handler := getRandomnessHandler(srvWithEpochLen(defaultEpochLen))
 
 	for n := 0; n < b.N; n++ {
 		_, _ = makeReq(handler, req)
