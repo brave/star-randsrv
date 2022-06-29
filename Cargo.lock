@@ -509,7 +509,7 @@ dependencies = [
 [[package]]
 name = "ppoprf"
 version = "0.0.1"
-source = "git+https://github.com/brave/sta-rs?rev=76ee2d531a5732ac6712abcd85269e9b66acce86#76ee2d531a5732ac6712abcd85269e9b66acce86"
+source = "git+https://github.com/brave/sta-rs?rev=9b12fc7508d2105a34c0254281fa51950a4f9ce1#9b12fc7508d2105a34c0254281fa51950a4f9ce1"
 dependencies = [
  "base64",
  "bincode",
@@ -730,7 +730,7 @@ dependencies = [
 [[package]]
 name = "strobe-rng"
 version = "0.1.0"
-source = "git+https://github.com/brave/sta-rs?rev=76ee2d531a5732ac6712abcd85269e9b66acce86#76ee2d531a5732ac6712abcd85269e9b66acce86"
+source = "git+https://github.com/brave/sta-rs?rev=9b12fc7508d2105a34c0254281fa51950a4f9ce1#9b12fc7508d2105a34c0254281fa51950a4f9ce1"
 dependencies = [
  "rand_core 0.6.3",
  "strobe-rs",

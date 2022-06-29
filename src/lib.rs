@@ -25,7 +25,7 @@ pub struct RandomnessServer {
 // FIXME: Pass a [u8] and length for the md initialization.
 #[no_mangle]
 pub extern "C" fn randomness_server_create() -> *mut RandomnessServer {
-    let test_mds = vec![0u8];
+    let test_mds: Vec<u8> = (0..=255).collect();
     if let Ok(inner) = ppoprf::Server::new(test_mds) {
         let server = Box::new(RandomnessServer { inner });
         Box::into_raw(server)
@@ -78,18 +78,17 @@ pub unsafe extern "C" fn randomness_server_eval(
     // Wrap the provided compressed Ristretto point in the expected type.
     // Unfortunately from_slice() copies the data here.
     let input = std::slice::from_raw_parts(input, ppoprf::COMPRESSED_POINT_LEN);
-    if let Ok(point) = serde_json::from_slice(input) {
-        // Evaluate the requested point.
-        if let Ok(result) = server.eval(&point, md, verifiable) {
-            // Copy the resulting point into the output buffer.
-            std::ptr::copy_nonoverlapping(
-                result.output.as_bytes().as_ptr(),
-                output,
-                ppoprf::COMPRESSED_POINT_LEN,
-            );
-            // success
-            return true;
-        }
+    let point = ppoprf::Point::from(input);
+    // Evaluate the requested point.
+    if let Ok(result) = server.eval(&point, md, verifiable) {
+        // Copy the resulting point into the output buffer.
+        std::ptr::copy_nonoverlapping(
+            result.output.as_bytes().as_ptr(),
+            output,
+            ppoprf::COMPRESSED_POINT_LEN,
+        );
+        // success
+        return true;
     }
     // Earlier code failed.
     false
@@ -162,10 +161,10 @@ mod tests {
         let point = CompressedRistretto::default();
         let mut result = Vec::with_capacity(ppoprf::COMPRESSED_POINT_LEN);
         unsafe {
-            randomness_server_eval(
+            let eval_res = randomness_server_eval(
                 server,
                 point.as_bytes().as_ptr(),
-                0,
+                50,
                 false,
                 result.as_mut_ptr(),
             );
