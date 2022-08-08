@@ -338,7 +338,7 @@ func main() {
 	enclave := nitriding.NewEnclave(
 		&nitriding.Config{
 			SOCKSProxy: "socks5://127.0.0.1:1080",
-			FQDN:       "nitro.nymity.ch",
+			FQDN:       "star-randsrv.bsg.brave.software",
 			Port:       8443,
 			Debug:      false,
 			UseACME:    false,

@@ -3,7 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"net/http/httptest"
@@ -33,7 +33,7 @@ func makeReq(handler http.HandlerFunc, req *http.Request) (int, string) {
 	res := rec.Result()
 	defer res.Body.Close()
 
-	data, err := ioutil.ReadAll(res.Body)
+	data, err := io.ReadAll(res.Body)
 	if err != nil {
 		log.Fatalf("Failed to read HTTP response body: %s", err)
 	}
