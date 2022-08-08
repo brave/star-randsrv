@@ -24,5 +24,5 @@ RUN go build -trimpath -o star-randsrv ./
 # don't do this, we end up with non-deterministic build artifacts.
 FROM scratch
 COPY --from=go-builder /src/star-randsrv /
-EXPOSE 8080
+EXPOSE 8443
 CMD ["/star-randsrv"]
