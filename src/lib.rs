@@ -161,7 +161,7 @@ mod tests {
         let point = CompressedRistretto::default();
         let mut result = Vec::with_capacity(ppoprf::COMPRESSED_POINT_LEN);
         unsafe {
-            let eval_res = randomness_server_eval(
+            let _eval_res = randomness_server_eval(
                 server,
                 point.as_bytes().as_ptr(),
                 50,
