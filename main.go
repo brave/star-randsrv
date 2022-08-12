@@ -341,7 +341,7 @@ func main() {
 			FQDN:       "star-randsrv.bsg.brave.software",
 			Port:       8443,
 			Debug:      false,
-			UseACME:    false,
+			UseACME:    true,
 		},
 	)
 	enclave.AddRoute(http.MethodPost, "/randomness", getRandomnessHandler(srv))
