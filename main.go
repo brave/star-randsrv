@@ -24,9 +24,9 @@ import (
 
 	// This module must be imported first because of its side effects of
 	// seeding our system entropy pool.
-	_ "github.com/brave-experiments/nitriding/randseed"
+	_ "github.com/brave/nitriding/randseed"
 
-	"github.com/brave-experiments/nitriding"
+	"github.com/brave/nitriding"
 	"github.com/bwesterb/go-ristretto"
 )
 
