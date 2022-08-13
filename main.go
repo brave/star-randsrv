@@ -13,7 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -268,7 +268,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 		var verifiable bool = false
 		var output [32]byte
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
