@@ -13,7 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -24,9 +24,9 @@ import (
 
 	// This module must be imported first because of its side effects of
 	// seeding our system entropy pool.
-	_ "github.com/brave-experiments/nitriding/randseed"
+	_ "github.com/brave/nitriding/randseed"
 
-	"github.com/brave-experiments/nitriding"
+	"github.com/brave/nitriding"
 	"github.com/bwesterb/go-ristretto"
 )
 
@@ -268,7 +268,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 		var verifiable bool = false
 		var output [32]byte
 
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -341,7 +341,7 @@ func main() {
 			FQDN:       "star-randsrv.bsg.brave.software",
 			Port:       8443,
 			Debug:      false,
-			UseACME:    false,
+			UseACME:    true,
 		},
 	)
 	enclave.AddRoute(http.MethodPost, "/randomness", getRandomnessHandler(srv))
