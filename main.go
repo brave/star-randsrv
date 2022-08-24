@@ -51,6 +51,9 @@ const (
 	serializedPkBufferSize uint = 10240
 	// The last epoch, before our counter overflows
 	maxEpoch = ^epoch(0)
+	// HTTP header keys and values.
+	httpContentType = "Content-Type"
+	contentTypeJSON = "application/json"
 )
 
 type epoch uint8
@@ -251,6 +254,7 @@ func getServerInfo(srv *Server) http.HandlerFunc {
 			NextEpochTime: nextEpochTime.Format(time.RFC3339),
 		}
 		srv.Unlock()
+		w.Header().Set(httpContentType, contentTypeJSON)
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -320,6 +324,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 			resp.Epoch = req.Epoch
 		}
 
+		w.Header().Set(httpContentType, contentTypeJSON)
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

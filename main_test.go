@@ -15,6 +15,15 @@ import (
 var (
 	// A valid EC point consists of base64.
 	validPoint = "gpfxPFUTfJvKdD6x5G74VD9Bxdb3efsHYJN0d7vu0XE="
+	// Generated random Ristretto points as follows:
+	//   var p ristretto.Point
+	//   p.Rand()
+	//   fmt.Printf("%x\n", p.Bytes())
+	validPayload = `{"points": [
+		"kKqpcTYWYHrteg62hVEcWGLkw6L+zyGnSLzlszB3SS4=",
+		"pOC5TSyy2TrDl8qvC7F5giT77CnaTrzmzRNNOXDS3g4=",
+		"gpfxPFUTfJvKdD6x5G74VD9Bxdb3efsHYJN0d7vu0XE="
+	]}`
 )
 
 func srvWithEpochLen(epochLen time.Duration) *Server {
@@ -102,18 +111,43 @@ func TestEpoch(t *testing.T) {
 	}
 }
 
+func TestInfoContentType(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/info", nil)
+	handler := getServerInfo(srvWithEpochLen(defaultEpochLen))
+
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	res := rec.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("Expected HTTP code %d but got %d.", http.StatusOK, res.StatusCode)
+	}
+	if res.Header.Get(httpContentType) != contentTypeJSON {
+		t.Errorf("Expected %q but got %q.", contentTypeJSON, res.Header.Get("Content-Type"))
+	}
+}
+
+func TestRandomnessContentType(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(validPayload))
+	handler := getServerInfo(srvWithEpochLen(defaultEpochLen))
+
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+	res := rec.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		t.Errorf("Expected HTTP code %d but got %d.", http.StatusOK, res.StatusCode)
+	}
+	if res.Header.Get(httpContentType) != contentTypeJSON {
+		t.Errorf("Expected %q but got %q.", contentTypeJSON, res.Header.Get("Content-Type"))
+	}
+}
+
 func TestHTTPHandler(t *testing.T) {
 	var resp string
 	var code int
-	// Generated random Ristretto points as follows:
-	//   var p ristretto.Point
-	//   p.Rand()
-	//   fmt.Printf("%x\n", p.Bytes())
-	validPayload := `{"points": [
-		"kKqpcTYWYHrteg62hVEcWGLkw6L+zyGnSLzlszB3SS4=",
-		"pOC5TSyy2TrDl8qvC7F5giT77CnaTrzmzRNNOXDS3g4=",
-		"gpfxPFUTfJvKdD6x5G74VD9Bxdb3efsHYJN0d7vu0XE="
-	]}`
 	validReq := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(validPayload))
 	handler := getRandomnessHandler(srvWithEpochLen(defaultEpochLen))
 
