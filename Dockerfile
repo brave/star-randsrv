@@ -23,6 +23,7 @@ RUN go build -trimpath -o star-randsrv ./
 # Copy from the builder to keep the final image reproducible and small.  If we
 # don't do this, we end up with non-deterministic build artifacts.
 FROM scratch
+COPY --from=go-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=go-builder /src/star-randsrv /
 EXPOSE 8443
 CMD ["/star-randsrv"]
