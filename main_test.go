@@ -130,7 +130,7 @@ func TestInfoContentType(t *testing.T) {
 
 func TestRandomnessContentType(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(validPayload))
-	handler := getServerInfo(srvWithEpochLen(defaultEpochLen))
+	handler := getRandomnessHandler(srvWithEpochLen(defaultEpochLen))
 
 	rec := httptest.NewRecorder()
 	handler(rec, req)
