@@ -57,7 +57,7 @@ type epoch uint8
 
 type cliRandRequest struct {
 	Points []string `json:"points"`
-	Epoch  epoch    `json:"epoch"`
+	Epoch  *epoch   `json:"epoch"`
 }
 
 // The response has the same format as the request.
@@ -285,6 +285,14 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 			http.Error(w, errNoECPoints, http.StatusBadRequest)
 			return
 		}
+		if req.Epoch == nil {
+			// Default to the current epoch since none was specifed.
+			srv.Lock()
+			currentEpoch, _ := srv.getEpoch(time.Now().UTC())
+			srv.Unlock()
+			req.Epoch = new(epoch)
+			*req.Epoch = currentEpoch
+		}
 
 		for _, encodedPoint := range req.Points {
 			// Remove layer of base64 encoding from marshalled EC point.
@@ -306,7 +314,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 			srv.Lock()
 			evalRes := C.randomness_server_eval(srv.raw,
 				(*C.uint8_t)(unsafe.Pointer(&input[0])),
-				(C.uint8_t)(req.Epoch),
+				(C.uint8_t)(*req.Epoch),
 				(C.bool)(verifiable),
 				(*C.uint8_t)(unsafe.Pointer(&output[0])))
 			srv.Unlock()
