@@ -169,6 +169,32 @@ func TestHTTPHandler(t *testing.T) {
 	}
 }
 
+func TestEpochNilPointer(t *testing.T) {
+	c := cliRandRequest{}
+
+	// Client didn't provide an epoch value.  Epoch must be nil.
+	blob := []byte(`{"points": ["foo", "bar"]}`)
+	if err := json.Unmarshal(blob, &c); err != nil {
+		t.Fatalf("Error while unmarshalling: %v", err)
+	}
+	if c.Epoch != nil {
+		t.Fatal("Expected epoch to be nil but it's not.")
+	}
+}
+
+func TestEpochNonNilPointer(t *testing.T) {
+	c := cliRandRequest{}
+
+	// Client did provide an epoch value.  Epoch must not be nil.
+	blob := []byte(`{"points": ["foo", "bar"], "epoch": 123}`)
+	if err := json.Unmarshal(blob, &c); err != nil {
+		t.Fatalf("Error while unmarshalling: %v", err)
+	}
+	if c.Epoch == nil {
+		t.Fatal("Expected epoch to be non-nil but it's nil.")
+	}
+}
+
 func BenchmarkHTTPHandler(b *testing.B) {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/randomness?ec_point=%s", validPoint), nil)
 	handler := getRandomnessHandler(srvWithEpochLen(defaultEpochLen))
