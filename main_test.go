@@ -49,6 +49,34 @@ func makeReq(handler http.HandlerFunc, req *http.Request) (int, string) {
 	return res.StatusCode, strings.TrimSpace(string(data))
 }
 
+// Make a randomness request
+//
+// makeRandomnessReq() makes a request without specifying an epoch.
+// makeRandomnessReq(epoch) makes a request with the given epoch.
+func makeRandomnessReq(params ...epoch) srvRandResponse {
+	var payload string
+	if len(params) == 0 {
+		payload = fmt.Sprintf(`{ "points": [ "%s" ] }`, validPoint)
+	} else if len(params) == 1 {
+		payload = fmt.Sprintf(`{ "points": [ "%s" ], "epoch": %d }`, validPoint, params[0])
+	} else {
+		log.Fatalf("Invalid number of arguments (%d) to makeRandomnessReq", len(params))
+	}
+
+	var res srvRandResponse
+	handler := getRandomnessHandler(srvWithEpochLen(defaultEpochLen))
+	req := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(payload))
+	status, result := makeReq(handler, req)
+	if status != http.StatusOK {
+		log.Fatalf("Expected HTTP code %d but got %d.", http.StatusOK, status)
+	}
+	if err := json.NewDecoder(strings.NewReader(result)).Decode(&res); err != nil {
+		log.Fatalf("Failed to unmarshal server's JSON response: %s", err)
+	}
+
+	return res
+}
+
 func TestEpochRotation(t *testing.T) {
 	var origMd, newMd epoch
 	srv := srvWithEpochLen(time.Millisecond)
@@ -142,6 +170,37 @@ func TestRandomnessContentType(t *testing.T) {
 	}
 	if res.Header.Get(httpContentType) != contentTypeJSON {
 		t.Errorf("Expected %q but got %q.", contentTypeJSON, res.Header.Get("Content-Type"))
+	}
+}
+
+func TestRandomnessEpoch(t *testing.T) {
+	const defaultEpoch epoch = 33
+
+	// Submit a point without specifying an epoch.
+	noEpochResponse := makeRandomnessReq()
+	if noEpochResponse.Epoch == nil {
+		t.Fatalf("Expected randomness response to include an epoch")
+	}
+	if *noEpochResponse.Epoch != defaultEpoch {
+		t.Errorf("Expected epoch %d but got %d.", defaultEpochLen, *noEpochResponse.Epoch)
+	}
+
+	// Explicitly request the current epoch and verify it's used.
+	defaultEpochResponse := makeRandomnessReq(defaultEpoch)
+	if defaultEpochResponse.Epoch == nil {
+		t.Fatalf("Expected randomness response to include an epoch")
+	}
+	if *defaultEpochResponse.Epoch != defaultEpoch {
+		t.Errorf("Expected epoch %d but got %d.", defaultEpoch, *defaultEpochResponse.Epoch)
+	}
+
+	// Request a future epoch.
+	futureEpochResponse := makeRandomnessReq(defaultEpoch + 1)
+	if futureEpochResponse.Epoch == nil {
+		t.Fatalf("Expected randomness response to include an epoch")
+	}
+	if *futureEpochResponse.Epoch != defaultEpoch+1 {
+		t.Errorf("Expected epoch %d but got %d.", defaultEpoch+1, *futureEpochResponse.Epoch)
 	}
 }
 
