@@ -35,6 +35,7 @@ func srvWithEpochLen(epochLen time.Duration) *Server {
 	return srv
 }
 
+// Pass a request to to given hander and return the status and response body.
 func makeReq(handler http.HandlerFunc, req *http.Request) (int, string) {
 	rec := httptest.NewRecorder()
 	handler(rec, req)
@@ -49,11 +50,28 @@ func makeReq(handler http.HandlerFunc, req *http.Request) (int, string) {
 	return res.StatusCode, strings.TrimSpace(string(data))
 }
 
+// Make an info request
+func makeInfoReq(srv *Server) srvInfoResponse {
+	handler := getServerInfo(srv)
+
+	var res srvInfoResponse
+	req := httptest.NewRequest(http.MethodPost, "/info", nil)
+	status, result := makeReq(handler, req)
+	if status != http.StatusOK {
+		log.Fatalf("Expected HTTP code %d but got %d.", http.StatusOK, status)
+	}
+	if err := json.NewDecoder(strings.NewReader(result)).Decode(&res); err != nil {
+		log.Fatalf("Failed to unmarshal server's JSON response: %s", err)
+	}
+
+	return res
+}
+
 // Make a randomness request
 //
 // makeRandomnessReq() makes a request without specifying an epoch.
 // makeRandomnessReq(epoch) makes a request with the given epoch.
-func makeRandomnessReq(params ...epoch) srvRandResponse {
+func makeRandomnessReq(srv *Server, params ...epoch) srvRandResponse {
 	var payload string
 	if len(params) == 0 {
 		payload = fmt.Sprintf(`{ "points": [ "%s" ] }`, validPoint)
@@ -64,7 +82,7 @@ func makeRandomnessReq(params ...epoch) srvRandResponse {
 	}
 
 	var res srvRandResponse
-	handler := getRandomnessHandler(srvWithEpochLen(defaultEpochLen))
+	handler := getRandomnessHandler(srv)
 	req := httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(payload))
 	status, result := makeReq(handler, req)
 	if status != http.StatusOK {
@@ -174,33 +192,36 @@ func TestRandomnessContentType(t *testing.T) {
 }
 
 func TestRandomnessEpoch(t *testing.T) {
-	const defaultEpoch epoch = 33
+	srv := srvWithEpochLen(defaultEpochLen)
+
+	// Fetch the server's current epoch to test against.
+	currentEpoch := makeInfoReq(srv).CurrentEpoch
 
 	// Submit a point without specifying an epoch.
-	noEpochResponse := makeRandomnessReq()
+	noEpochResponse := makeRandomnessReq(srv)
 	if noEpochResponse.Epoch == nil {
 		t.Fatalf("Expected randomness response to include an epoch")
 	}
-	if *noEpochResponse.Epoch != defaultEpoch {
-		t.Errorf("Expected epoch %d but got %d.", defaultEpochLen, *noEpochResponse.Epoch)
+	if *noEpochResponse.Epoch != currentEpoch {
+		t.Errorf("Expected epoch %d but got %d.", currentEpoch, *noEpochResponse.Epoch)
 	}
 
 	// Explicitly request the current epoch and verify it's used.
-	defaultEpochResponse := makeRandomnessReq(defaultEpoch)
-	if defaultEpochResponse.Epoch == nil {
+	currentEpochResponse := makeRandomnessReq(srv, currentEpoch)
+	if currentEpochResponse.Epoch == nil {
 		t.Fatalf("Expected randomness response to include an epoch")
 	}
-	if *defaultEpochResponse.Epoch != defaultEpoch {
-		t.Errorf("Expected epoch %d but got %d.", defaultEpoch, *defaultEpochResponse.Epoch)
+	if *currentEpochResponse.Epoch != currentEpoch {
+		t.Errorf("Expected epoch %d but got %d.", currentEpoch, *currentEpochResponse.Epoch)
 	}
 
 	// Request a future epoch.
-	futureEpochResponse := makeRandomnessReq(defaultEpoch + 1)
+	futureEpochResponse := makeRandomnessReq(srv, currentEpoch+1)
 	if futureEpochResponse.Epoch == nil {
 		t.Fatalf("Expected randomness response to include an epoch")
 	}
-	if *futureEpochResponse.Epoch != defaultEpoch+1 {
-		t.Errorf("Expected epoch %d but got %d.", defaultEpoch+1, *futureEpochResponse.Epoch)
+	if *futureEpochResponse.Epoch != currentEpoch+1 {
+		t.Errorf("Expected epoch %d but got %d.", currentEpoch+1, *futureEpochResponse.Epoch)
 	}
 }
 
