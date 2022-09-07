@@ -55,7 +55,7 @@ func makeInfoReq(srv *Server) srvInfoResponse {
 	handler := getServerInfo(srv)
 
 	var res srvInfoResponse
-	req := httptest.NewRequest(http.MethodPost, "/info", nil)
+	req := httptest.NewRequest(http.MethodGet, "/info", nil)
 	status, result := makeReq(handler, req)
 	if status != http.StatusOK {
 		log.Fatalf("Expected HTTP code %d but got %d.", http.StatusOK, status)
