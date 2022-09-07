@@ -35,7 +35,7 @@ func srvWithEpochLen(epochLen time.Duration) *Server {
 	return srv
 }
 
-// Pass a request to to given hander and return the status and response body.
+// Pass a request to the given handler and return the status and response body.
 func makeReq(handler http.HandlerFunc, req *http.Request) (int, string) {
 	rec := httptest.NewRecorder()
 	handler(rec, req)
