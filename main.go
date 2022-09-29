@@ -341,6 +341,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 }
 
 func main() {
+	elog.Printf("Running as UID %d.", os.Getuid())
 	firstEpochTime, epochLen := getFirstEpochTimeAndLen()
 	srv, err := NewServer(firstEpochTime, epochLen)
 	if err != nil {

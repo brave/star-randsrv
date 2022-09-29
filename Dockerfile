@@ -26,4 +26,6 @@ FROM scratch
 COPY --from=go-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=go-builder /src/star-randsrv /
 EXPOSE 8443
+# Switch to the UID that's typically reserved for the user "nobody".
+USER 65534
 CMD ["/star-randsrv"]

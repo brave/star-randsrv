@@ -3,7 +3,7 @@ module github.com/brave-experiments/star-randsrv
 go 1.19
 
 require (
-	github.com/brave/nitriding v1.1.1
+	github.com/brave/nitriding v1.1.2
 	github.com/bwesterb/go-ristretto v1.2.2
 )
 
@@ -18,9 +18,9 @@ require (
 	github.com/mdlayher/vsock v1.1.1 // indirect
 	github.com/milosgajdos/tenus v0.0.3 // indirect
 	github.com/x448/float16 v0.8.4 // indirect
-	golang.org/x/crypto v0.0.0-20220722155217-630584e8d5aa // indirect
+	golang.org/x/crypto v0.0.0-20220829220503-c86fa9a7ed90 // indirect
 	golang.org/x/net v0.0.0-20220812174116-3211cb980234 // indirect
 	golang.org/x/sync v0.0.0-20220722155255-886fb9371eb4 // indirect
-	golang.org/x/sys v0.0.0-20220811171246-fbc7d0a398ab // indirect
+	golang.org/x/sys v0.0.0-20220825204002-c680a09ffe64 // indirect
 	golang.org/x/text v0.3.7 // indirect
 )
