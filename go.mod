@@ -3,7 +3,7 @@ module github.com/brave-experiments/star-randsrv
 go 1.19
 
 require (
-	github.com/brave/nitriding v1.1.2
+	github.com/brave/nitriding v1.1.3
 	github.com/bwesterb/go-ristretto v1.2.2
 )
 
