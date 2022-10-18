@@ -13,6 +13,7 @@ test: $(godeps) $(stardeps)
 
 lint:
 	golangci-lint run ./...
+	go vet
 	cargo clippy
 	cargo audit
 
