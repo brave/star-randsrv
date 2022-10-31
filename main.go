@@ -164,12 +164,12 @@ func (srv *Server) puncture(md epoch) error {
 	defer srv.Unlock()
 
 	C.randomness_server_puncture(srv.raw, (C.uint8_t)(md))
+	elog.Printf("Punctured epoch %d.", md)
 
-	// An epoch is exhausted when our 8-bit counter is about to overflow.
+	// An epoch set is exhausted when our 8-bit counter is about to overflow.
 	if md == maxEpoch {
 		return errors.New(errEpochExhausted)
 	}
-	elog.Printf("Punctured epoch %d.", md)
 	return nil
 }
 
