@@ -261,6 +261,31 @@ func TestHTTPHandler(t *testing.T) {
 		t.Errorf("Expected HTTP code %d but got %d.", http.StatusBadRequest, code)
 	}
 
+	// Provide no points.
+	badReq = httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(`{"points":[]}`))
+	code, resp = makeReq(handler, badReq)
+	if resp != errNoECPoints {
+		t.Errorf("Expected %q but got %q.", errNoECPoints, resp)
+	}
+	if code != http.StatusBadRequest {
+		t.Errorf("Expected HTTP code %d but got %d.", http.StatusBadRequest, code)
+	}
+
+	// Provide too many points.
+	j := `{"points":[`
+	for i := 0; i < maxPoints; i++ {
+		j += fmt.Sprintf("\"%s\",", validPoint)
+	}
+	j += fmt.Sprintf("\"%s\"]}", validPoint)
+	badReq = httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(j))
+	code, resp = makeReq(handler, badReq)
+	if resp != errTooManyPoints {
+		t.Errorf("Expected %q but got %q.", errTooManyPoints, resp)
+	}
+	if code != http.StatusBadRequest {
+		t.Errorf("Expected HTTP code %d but got %d.", http.StatusBadRequest, code)
+	}
+
 	// Provide an invalid EC point.
 	badPayload := `{"points":["1111111111111111111111111111111111111111111111111111111111111111"]}`
 	badReq = httptest.NewRequest(http.MethodPost, "/randomness", strings.NewReader(badPayload))

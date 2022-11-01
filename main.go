@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -38,6 +39,7 @@ var (
 	errDecodeECPoint  = "failed to decode EC point"
 	errParseECPoint   = "failed to parse EC point"
 	errEpochExhausted = "epochs are exhausted"
+	errTooManyPoints  = fmt.Sprintf("too many points (> %d) given", maxPoints)
 
 	defaultFirstEpochTime, _ = time.Parse(time.RFC3339, "2022-01-01T00:00:00.000Z")
 )
@@ -51,6 +53,8 @@ const (
 	serializedPkBufferSize uint = 10240
 	// The last epoch, before our counter overflows
 	maxEpoch = ^epoch(0)
+	// The maximum number of points we're willing to process
+	maxPoints = 1000
 	// HTTP header keys and values.
 	httpContentType = "Content-Type"
 	contentTypeJSON = "application/json"
@@ -287,6 +291,10 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 		}
 		if len(req.Points) == 0 {
 			http.Error(w, errNoECPoints, http.StatusBadRequest)
+			return
+		}
+		if len(req.Points) > maxPoints {
+			http.Error(w, errTooManyPoints, http.StatusBadRequest)
 			return
 		}
 		if req.Epoch == nil {
