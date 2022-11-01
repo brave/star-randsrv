@@ -75,6 +75,7 @@ type srvInfoResponse struct {
 	PublicKey     string `json:"publicKey"`
 	CurrentEpoch  epoch  `json:"currentEpoch"`
 	NextEpochTime string `json:"nextEpochTime"`
+	MaxPoints     int    `json:"maxPoints"`
 }
 
 // Embed an zero-length struct to mark our wrapped structs `noCopy`
@@ -256,6 +257,7 @@ func getServerInfo(srv *Server) http.HandlerFunc {
 			PublicKey:     srv.pubKey,
 			CurrentEpoch:  currentEpoch,
 			NextEpochTime: nextEpochTime.Format(time.RFC3339),
+			MaxPoints:     maxPoints,
 		}
 		srv.Unlock()
 		w.Header().Set(httpContentType, contentTypeJSON)

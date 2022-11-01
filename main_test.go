@@ -191,6 +191,17 @@ func TestRandomnessContentType(t *testing.T) {
 	}
 }
 
+func TestPointLimitInInfo(t *testing.T) {
+	srv := srvWithEpochLen(defaultEpochLen)
+	infoResp := makeInfoReq(srv)
+
+	// Make sure that the handler returns the maximum number of points that the
+	// server is willing to process.
+	if infoResp.MaxPoints != maxPoints {
+		t.Fatalf("Expected point limit of %d but got %d.", maxPoints, infoResp.MaxPoints)
+	}
+}
+
 func TestRandomnessEpoch(t *testing.T) {
 	srv := srvWithEpochLen(defaultEpochLen)
 
