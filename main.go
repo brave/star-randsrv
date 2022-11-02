@@ -95,7 +95,6 @@ type Server struct {
 	sync.Mutex
 	raw            *C.RandomnessServer
 	noCopy         noCopy //nolint:structcheck
-	done           chan bool
 	pubKey         string // Base64-encoded public key.
 	firstEpochTime time.Time
 	epochLen       time.Duration
@@ -115,20 +114,15 @@ func (srv *Server) epochLoop() {
 
 	ticker := time.NewTicker(srv.epochLen)
 	elog.Println("Starting epoch loop.")
-	for {
-		select {
-		case <-srv.done:
-			return
-		case <-ticker.C:
-			if err := srv.puncture(currentEpoch); err != nil {
-				if err.Error() == errEpochExhausted {
-					if err := srv.init(); err != nil {
-						elog.Fatal("Failed to re-initialize randomness server.")
-					}
+	for range ticker.C {
+		if err := srv.puncture(currentEpoch); err != nil {
+			if err.Error() == errEpochExhausted {
+				if err := srv.init(); err != nil {
+					elog.Fatal("Failed to re-initialize randomness server.")
 				}
 			}
-			currentEpoch, _ = srv.getEpoch(time.Now().UTC())
 		}
+		currentEpoch, _ = srv.getEpoch(time.Now().UTC())
 	}
 }
 
@@ -188,7 +182,6 @@ func serverFinalizer(server *Server) {
 // The instance will generate its own secret key.
 func NewServer(firstEpochTime time.Time, epochLen time.Duration) (*Server, error) {
 	server := &Server{
-		done:           make(chan bool),
 		firstEpochTime: firstEpochTime,
 		epochLen:       epochLen,
 	}
