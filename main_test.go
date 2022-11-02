@@ -28,7 +28,6 @@ var (
 
 func srvWithEpochLen(epochLen time.Duration) *Server {
 	srv, err := NewServer(defaultFirstEpochTime, epochLen)
-	srv.epochLen = epochLen
 	if err != nil {
 		log.Fatalf("Failed to create randomness server: %s", err)
 	}
