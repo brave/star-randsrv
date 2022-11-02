@@ -239,8 +239,8 @@ func getFirstEpochTimeAndLen() (time.Time, time.Duration) {
 // info and public key to the client.
 func getServerInfo(srv *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		srv.Lock()
 		currentEpoch, nextEpochTime := srv.getEpoch(time.Now().UTC())
+		srv.Lock()
 		resp := srvInfoResponse{
 			PublicKey:     srv.pubKey,
 			CurrentEpoch:  currentEpoch,
@@ -284,9 +284,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 		}
 		if req.Epoch == nil {
 			// Default to the current epoch since none was specifed.
-			srv.Lock()
 			currentEpoch, _ := srv.getEpoch(time.Now().UTC())
-			srv.Unlock()
 			req.Epoch = new(epoch)
 			*req.Epoch = currentEpoch
 		}
