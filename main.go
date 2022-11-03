@@ -100,7 +100,6 @@ type Server struct {
 	sync.Mutex
 	raw            *C.RandomnessServer
 	noCopy         noCopy //nolint:structcheck
-	done           chan bool
 	pubKey         string // Base64-encoded public key.
 	firstEpochTime time.Time
 	epochLen       time.Duration
@@ -120,20 +119,15 @@ func (srv *Server) epochLoop() {
 
 	ticker := time.NewTicker(srv.epochLen)
 	elog.Println("Starting epoch loop.")
-	for {
-		select {
-		case <-srv.done:
-			return
-		case <-ticker.C:
-			if err := srv.puncture(currentEpoch); err != nil {
-				if err.Error() == errEpochExhausted {
-					if err := srv.init(); err != nil {
-						elog.Fatal("Failed to re-initialize randomness server.")
-					}
+	for range ticker.C {
+		if err := srv.puncture(currentEpoch); err != nil {
+			if err.Error() == errEpochExhausted {
+				if err := srv.init(); err != nil {
+					elog.Fatal("Failed to re-initialize randomness server.")
 				}
 			}
-			currentEpoch, _ = srv.getEpoch(time.Now().UTC())
 		}
+		currentEpoch, _ = srv.getEpoch(time.Now().UTC())
 	}
 }
 
@@ -193,7 +187,6 @@ func serverFinalizer(server *Server) {
 // The instance will generate its own secret key.
 func NewServer(firstEpochTime time.Time, epochLen time.Duration) (*Server, error) {
 	server := &Server{
-		done:           make(chan bool),
 		firstEpochTime: firstEpochTime,
 		epochLen:       epochLen,
 	}
@@ -251,8 +244,8 @@ func getFirstEpochTimeAndLen() (time.Time, time.Duration) {
 // info and public key to the client.
 func getServerInfo(srv *Server) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		srv.Lock()
 		currentEpoch, nextEpochTime := srv.getEpoch(time.Now().UTC())
+		srv.Lock()
 		resp := srvInfoResponse{
 			PublicKey:     srv.pubKey,
 			CurrentEpoch:  currentEpoch,
@@ -301,9 +294,7 @@ func getRandomnessHandler(srv *Server) http.HandlerFunc {
 		}
 		if req.Epoch == nil {
 			// Default to the current epoch since none was specifed.
-			srv.Lock()
 			currentEpoch, _ := srv.getEpoch(time.Now().UTC())
-			srv.Unlock()
 			req.Epoch = new(epoch)
 			*req.Epoch = currentEpoch
 		}

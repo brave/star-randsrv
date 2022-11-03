@@ -9,6 +9,7 @@ all: test lint $(binary)
 
 test: $(godeps) $(stardeps)
 	go test -cover ./...
+	go test -race ./...
 	cargo test
 
 lint:
