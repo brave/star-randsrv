@@ -98,9 +98,12 @@ func (*noCopy) Unlock() {}
 // Server represents a PPOPRF randomness server instance.
 type Server struct {
 	sync.Mutex
-	raw            *C.RandomnessServer
-	noCopy         noCopy //nolint:structcheck
-	pubKey         string // Base64-encoded public key.
+	raw    *C.RandomnessServer
+	noCopy noCopy //nolint:structcheck
+	pubKey string // Base64-encoded public key
+
+	// The following are set once at construction and are read-only
+	// afterward, so they don't require a lock to access.
 	firstEpochTime time.Time
 	epochLen       time.Duration
 }
