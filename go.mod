@@ -1,4 +1,4 @@
-module github.com/brave-experiments/star-randsrv
+module github.com/brave/star-randsrv
 
 go 1.19
 
