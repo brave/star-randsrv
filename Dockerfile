@@ -9,7 +9,7 @@ RUN cargo build --locked --release
 
 # Take the compiled sta-rs library (specifically, the object and header file),
 # and use it to build star-randsrv; again, in a builder container.
-FROM golang:1.18 as go-builder
+FROM golang:1.19 as go-builder
 
 WORKDIR /src/
 RUN mkdir -p ./target/release ./include
