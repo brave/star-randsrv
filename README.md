@@ -23,6 +23,12 @@ To build a reproducible Docker image of the randomness server, run:
 make docker
 ```
 
+To execute just the randomness webapp with logging, run:
+
+```
+RUST_LOG=tower_http=trace,star_randsrv=debug cargo run
+```
+
 Input
 -----
 
