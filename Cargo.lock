@@ -736,6 +736,7 @@ dependencies = [
  "axum",
  "curve25519-dalek",
  "ppoprf",
+ "serde",
  "serde_json",
  "tokio",
  "tower-http",

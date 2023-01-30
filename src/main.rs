@@ -1,15 +1,34 @@
 //! STAR Randomness web service
 
 use axum::{Router, routing::get, routing::post};
-use axum::extract::State;
-use tracing::info;
+use axum::extract::{Json, State};
+use serde::{Serialize, Deserialize};
+use tracing::{info, debug};
 
 use std::sync::Arc;
 use ppoprf::ppoprf;
 
+#[derive(Deserialize, Debug)]
+struct RandomnessRequest {
+    points: Vec<String>,
+}
+
+#[derive(Serialize, Debug)]
+struct RandomnessResponse {
+    points: Vec<String>,
+    epoch: u8,
+}
+
 /// Process PPOPRF evaluation requests
-async fn randomness(State(state): State<Arc<ppoprf::Server>>) -> &'static str {
-    "Randomness request not yet implemented\n"
+async fn randomness(
+    Json(request): Json<RandomnessRequest>,
+//    State(state): State<Arc<ppoprf::Server>>
+) -> Json<RandomnessResponse> {
+    debug!("recv: {request:?}");
+    Json(RandomnessResponse{
+        points: vec![],
+        epoch: 0u8,
+    })
 }
 
 #[tokio::main]
