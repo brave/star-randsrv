@@ -34,15 +34,16 @@ async fn randomness(
     debug!("recv: {request:?}");
     let state = state.lock().unwrap();
     let epoch = request.epoch.unwrap_or(state.epoch);
-    let point = BASE64.decode(&request.points[0]).unwrap();
-    let point = ppoprf::Point::from(point.as_slice());
-    let point = state.server.eval(&point, epoch, false).unwrap();
-    let point = BASE64.encode(point.output.as_bytes());
-    Json(RandomnessResponse{
-        points: vec![point],
-        epoch,
-    })
-
+    let prove = false;
+    let points = request
+        .points
+        .into_iter()
+        .map(|base64_input| BASE64.decode(base64_input).unwrap())
+        .map(|input| ppoprf::Point::from(input.as_slice()))
+        .map(|point| state.server.eval(&point, epoch, prove).unwrap())
+        .map(|evaluation| BASE64.encode(evaluation.output.as_bytes()))
+        .collect();
+    Json(RandomnessResponse { points, epoch })
 }
 
 #[tokio::main]
