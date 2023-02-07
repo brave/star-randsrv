@@ -1,13 +1,13 @@
 //! STAR Randomness web service
 
-use axum::{Router, routing::get, routing::post};
 use axum::extract::{Json, State};
+use axum::{routing::get, routing::post, Router};
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
-use serde::{Serialize, Deserialize};
-use tracing::{info, debug};
+use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 
-use std::sync::{Arc, Mutex};
 use ppoprf::ppoprf;
+use std::sync::{Arc, Mutex};
 
 struct OPRFServer {
     server: ppoprf::Server,
@@ -62,10 +62,7 @@ async fn main() {
     let epoch = epochs[0];
     let server = ppoprf::Server::new(epochs)
         .expect("Could not initialize PPOPRF state");
-    let oprf_state = Arc::new(Mutex::new(OPRFServer {
-        server,
-        epoch,
-    }));
+    let oprf_state = Arc::new(Mutex::new(OPRFServer { server, epoch }));
 
     // Set up routes and middleware
     info!("initializing routes...");
