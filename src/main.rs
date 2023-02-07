@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 
 use ppoprf::ppoprf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 struct OPRFServer {
     server: ppoprf::Server,
@@ -28,11 +28,11 @@ struct RandomnessResponse {
 
 /// Process PPOPRF evaluation requests
 async fn randomness(
-    State(state): State<Arc<Mutex<OPRFServer>>>,
+    State(state): State<Arc<RwLock<OPRFServer>>>,
     Json(request): Json<RandomnessRequest>,
 ) -> Json<RandomnessResponse> {
     debug!("recv: {request:?}");
-    let state = state.lock().unwrap();
+    let state = state.read().unwrap();
     let epoch = request.epoch.unwrap_or(state.epoch);
     let prove = false;
     let points = request
@@ -62,7 +62,7 @@ async fn main() {
     let epoch = epochs[0];
     let server = ppoprf::Server::new(epochs)
         .expect("Could not initialize PPOPRF state");
-    let oprf_state = Arc::new(Mutex::new(OPRFServer { server, epoch }));
+    let oprf_state = Arc::new(RwLock::new(OPRFServer { server, epoch }));
 
     // Set up routes and middleware
     info!("initializing routes...");
