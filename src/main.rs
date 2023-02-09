@@ -9,20 +9,31 @@ use tracing::{debug, info};
 use ppoprf::ppoprf;
 use std::sync::{Arc, RwLock};
 
+/// Internal state of the OPRF service
 struct OPRFServer {
+    /// oprf implementation
     server: ppoprf::Server,
+    /// currently-valid randomness epoch
     epoch: u8,
 }
 
 #[derive(Deserialize, Debug)]
 struct RandomnessRequest {
+    /// Array of points to evaluate
+    /// Should be base64-encoded compressed Ristretto curve points
     points: Vec<String>,
+    /// Optional request for evaluation within a specific epoch
     epoch: Option<u8>,
 }
 
+/// Response format for the randomness endpoint
 #[derive(Serialize, Debug)]
 struct RandomnessResponse {
+    /// Resulting points from the OPRF valuation
+    /// Should be base64-encode compressed points in one-to-one
+    /// correspondence with the request points.
     points: Vec<String>,
+    /// Randomness epoch used in the evaluation.
     epoch: u8,
 }
 
