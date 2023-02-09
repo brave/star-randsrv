@@ -1,6 +1,7 @@
 //! STAR Randomness web service
 
 use axum::extract::{Json, State};
+use axum ::http::StatusCode;
 use axum::{routing::get, routing::post, Router};
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
@@ -50,24 +51,65 @@ struct RandomnessResponse {
     epoch: u8,
 }
 
+/// Response returned to report error conditions
+#[derive(Serialize, Debug)]
+struct ErrorResponse {
+    /// Human-readable description of the error
+    message: String,
+}
+
+/// Server error conditions
+#[derive(Debug)]
+enum Error {
+    LockFailure,
+    BadPoint,
+    Base64(base64::DecodeError),
+    OPRF(ppoprf::PPRFError),
+}
+
+impl axum::response::IntoResponse for Error {
+    fn into_response(self) -> axum::response::Response {
+        let message = match self {
+            Error::LockFailure =>
+                "Couldn't lock state: RwLock poisoned".into(),
+            Error::BadPoint =>
+                "Invalid point".into(),
+            Error::Base64(e) =>
+                format!("invalid base64 encoding: {e}"),
+            Error::OPRF(e) =>
+                format!("PPOPRF error: {e}"),
+        };
+        let body = Json(ErrorResponse { message });
+        (StatusCode::BAD_REQUEST, body).into_response()
+    }
+}
+
 /// Process PPOPRF evaluation requests
 async fn randomness(
     State(state): State<OPRFState>,
     Json(request): Json<RandomnessRequest>,
-) -> Json<RandomnessResponse> {
+) -> Result<Json<RandomnessResponse>, Error> {
     debug!("recv: {request:?}");
-    let state = state.read().unwrap();
+    let state = state.read().map_err(|_| Error::LockFailure)?;
     let epoch = request.epoch.unwrap_or(state.epoch);
     let prove = false;
-    let points = request
-        .points
-        .into_iter()
-        .map(|base64_input| BASE64.decode(base64_input).unwrap())
-        .map(|input| ppoprf::Point::from(input.as_slice()))
-        .map(|point| state.server.eval(&point, epoch, prove).unwrap())
-        .map(|evaluation| BASE64.encode(evaluation.output.as_bytes()))
-        .collect();
-    Json(RandomnessResponse { points, epoch })
+    let mut points = Vec::with_capacity(request.points.len());
+    for base64_point in request.points {
+        let input = BASE64.decode(base64_point)
+            .map_err(|e| Error::Base64(e))?;
+        // FIXME: Point::from is fallible and needs to return a result.
+        // partial work-around: check correct length
+        if input.len() != ppoprf::COMPRESSED_POINT_LEN {
+            return Err(Error::BadPoint);
+        }
+        let point = ppoprf::Point::from(input.as_slice());
+        let evaluation = state.server.eval(&point, epoch, prove)
+            .map_err(|e| Error::OPRF(e))?;
+        points.push(BASE64.encode(evaluation.output.as_bytes()));
+    }
+    let response = RandomnessResponse { points, epoch };
+    debug!("send: {response:?}");
+    Ok(Json(response))
 }
 
 /// Advance to the next epoch on a timer
