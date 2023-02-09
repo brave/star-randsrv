@@ -4,7 +4,7 @@ use axum::extract::{Json, State};
 use axum::{routing::get, routing::post, Router};
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 use ppoprf::ppoprf;
 use std::sync::{Arc, RwLock};
@@ -15,6 +15,15 @@ struct OPRFServer {
     server: ppoprf::Server,
     /// currently-valid randomness epoch
     epoch: u8,
+}
+
+impl OPRFServer {
+    /// Initialize a new OPRFServer state supporting the given list of epochs
+    fn new(epochs: &[u8]) -> Result<Self, ppoprf::PPRFError> {
+        let epoch = epochs[0];
+        let server = ppoprf::Server::new(epochs.to_owned())?;
+        Ok(OPRFServer{ server, epoch })
+    }
 }
 
 /// Shareable wrapper around the server state
@@ -62,27 +71,37 @@ async fn randomness(
 }
 
 /// Advance to the next epoch on a timer
-async fn epoch_update_loop(state: OPRFState, mut future_epochs: Vec<u8>) {
-    // Flip the epoch list so we can conveniently pop() them off in order.
-    future_epochs.reverse();
+async fn epoch_update_loop(state: OPRFState, epochs: Vec<u8>) {
+    let mut future_epochs = Vec::with_capacity(epochs.len() - 1);
 
     let interval = std::time::Duration::from_secs(5);
     info!("rotating epoch every {} seconds", interval.as_secs());
 
     loop {
+        if future_epochs.is_empty() {
+            // Flip the epoch list so we can pop() them off in order.
+            future_epochs = epochs[1..].to_owned();
+            future_epochs.reverse();
+        }
+
+        // Wait until the current epoch ends.
         tokio::time::sleep(interval).await;
+
         // Acquire exclusive access to the oprf state.
         let mut s = state.write().expect("Failed to lock OPRFState");
+
         // Puncture the current epoch so it can no longer be used.
         let old_epoch = s.epoch;
         s.server.puncture(old_epoch).expect("Failed to puncture current epoch");
         // Mark the next epoch as current.
         if let Some(new_epoch) = future_epochs.pop() {
             s.epoch = new_epoch;
-            info!("epoch now {new_epoch}");
         } else {
-            warn!("Epochs exhausted! No further evalutations possible");
+            info!("Epochs exhausted! Rotating OPRF key");
+            *s = OPRFServer::new(&epochs)
+                .expect("Could not initialize new PPOPRF state");
         }
+        info!("epoch now {}", s.epoch);
     }
 }
 
@@ -99,16 +118,17 @@ async fn main() {
     // Obvlivious function state
     info!("initializing OPRF state...");
     let epochs: Vec<u8> = (0..255).collect();
-    let epoch = epochs[0];
-    let server = ppoprf::Server::new(epochs.clone())
+    let server = OPRFServer::new(&epochs)
         .expect("Could not initialize PPOPRF state");
-    let oprf_state = Arc::new(RwLock::new(OPRFServer { server, epoch }));
+    let oprf_state = Arc::new(RwLock::new(server));
 
     // Spawn a background process to advance the epoch
     info!("Spawning background task...");
     let background_state = oprf_state.clone();
-    let future_epochs = epochs[1..].to_owned();
-    tokio::spawn(async move { epoch_update_loop(background_state, future_epochs).await });
+    let background_epochs = epochs[1..].to_owned();
+    tokio::spawn(async move {
+        epoch_update_loop(background_state, background_epochs).await
+    });
 
     // Set up routes and middleware
     info!("initializing routes...");
