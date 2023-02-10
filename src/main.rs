@@ -64,7 +64,7 @@ enum Error {
     LockFailure,
     BadPoint,
     Base64(base64::DecodeError),
-    OPRF(ppoprf::PPRFError),
+    Oprf(ppoprf::PPRFError),
 }
 
 impl axum::response::IntoResponse for Error {
@@ -76,7 +76,7 @@ impl axum::response::IntoResponse for Error {
                 "Invalid point".into(),
             Error::Base64(e) =>
                 format!("invalid base64 encoding: {e}"),
-            Error::OPRF(e) =>
+            Error::Oprf(e) =>
                 format!("PPOPRF error: {e}"),
         };
         let body = Json(ErrorResponse { message });
@@ -96,7 +96,7 @@ async fn randomness(
     let mut points = Vec::with_capacity(request.points.len());
     for base64_point in request.points {
         let input = BASE64.decode(base64_point)
-            .map_err(|e| Error::Base64(e))?;
+            .map_err(Error::Base64)?;
         // FIXME: Point::from is fallible and needs to return a result.
         // partial work-around: check correct length
         if input.len() != ppoprf::COMPRESSED_POINT_LEN {
@@ -104,7 +104,7 @@ async fn randomness(
         }
         let point = ppoprf::Point::from(input.as_slice());
         let evaluation = state.server.eval(&point, epoch, prove)
-            .map_err(|e| Error::OPRF(e))?;
+            .map_err(Error::Oprf)?;
         points.push(BASE64.encode(evaluation.output.as_bytes()));
     }
     let response = RandomnessResponse { points, epoch };
