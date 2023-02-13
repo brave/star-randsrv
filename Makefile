@@ -1,20 +1,16 @@
-.PHONY: all test lint eif star-randsrv clean
-
 binary = star-randsrv
 image = $(binary):latest
 godeps = *.go go.mod go.sum
 stardeps = include/ppoprf.h target/release/libstar_ppoprf_ffi.a
 
+.PHONY: all test lint eif $(binary) clean
+
 all: test lint $(binary)
 
-test: $(godeps) $(stardeps)
-	go test -cover ./...
-	go test -race ./...
+test:
 	cargo test
 
 lint:
-	golangci-lint run ./...
-	go vet
 	cargo clippy
 	cargo audit
 
@@ -47,12 +43,8 @@ docker:
 	@rm -f $(binary)-repro.tar
 	@echo $(image)
 
-$(binary): $(godeps) $(stardeps)
-	go build -o $(binary)
-
-$(stardeps): Cargo.toml build.rs src/lib.rs cbindgen.toml
+$(binary):
 	cargo build --release
 
 clean:
-	@rm -f $(binary)
 	@cargo clean
