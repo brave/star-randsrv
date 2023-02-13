@@ -1,5 +1,15 @@
-# Start by building the sta-rs library in a builder container.
-FROM rust:1.60 as rust-builder
+# Start by building the nitriding proxy daemon.
+FROM golang:1.19 as go-builder
+
+# golangci-lint is not in the golang image, install a binary.
+RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.50.0
+
+WORKDIR /src/
+COPY . .
+RUN make -C nitriding/cmd
+
+# Build the web server application itself.
+FROM rust:1.67.1 as rust-builder
 
 WORKDIR /src/
 COPY . .
@@ -7,25 +17,17 @@ COPY . .
 # that we use specific dependencies.
 RUN cargo build --locked --release
 
-# Take the compiled sta-rs library (specifically, the object and header file),
-# and use it to build star-randsrv; again, in a builder container.
-FROM golang:1.19 as go-builder
+# Copy from the builder imagse to keep the final image reproducible and small,
+# and to improve reproducibilty of the build.
+FROM alpine:3.17.2
+COPY --from=go-builder /src/nitriding/cmd/nitriding /usr/local/bin/
+COPY --from=rust-builder /src/star-randsrv/target/release/star-randsrv /usr/local/bin/
 
-WORKDIR /src/
-RUN mkdir -p ./target/release ./include
-COPY --from=rust-builder /src/include/ppoprf.h ./include
-COPY --from=rust-builder /src/target/release/libstar_ppoprf_ffi.a ./target/release
+# Set up the run-time environment
+COPY start.sh /usr/local/bin/
 
-COPY *.go go.mod go.sum ./
-RUN go mod download
-RUN go build -trimpath -o star-randsrv ./
-
-# Copy from the builder to keep the final image reproducible and small.  If we
-# don't do this, we end up with non-deterministic build artifacts.
-FROM scratch
-COPY --from=go-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=go-builder /src/star-randsrv /
 EXPOSE 8443
 # Switch to the UID that's typically reserved for the user "nobody".
 USER 65534
-CMD ["/star-randsrv"]
+
+CMD ["start.sh"]
