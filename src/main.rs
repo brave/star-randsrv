@@ -10,6 +10,7 @@ use tracing::{debug, info};
 use ppoprf::ppoprf;
 use std::sync::{Arc, RwLock};
 
+
 /// Internal state of the OPRF service
 struct OPRFServer {
     /// oprf implementation
@@ -18,17 +19,22 @@ struct OPRFServer {
     epoch: u8,
 }
 
+/// Shareable wrapper around the server state
+type OPRFState = Arc<RwLock<OPRFServer>>;
+/// Represents an contiguous range of configured randomness epochs
+type EpochRange = std::ops::Range<u8>;
+
 impl OPRFServer {
     /// Initialize a new OPRFServer state supporting the given list of epochs
-    fn new(epochs: &[u8]) -> Result<Self, ppoprf::PPRFError> {
+    fn new(epochs: &EpochRange) -> Result<Self, ppoprf::PPRFError> {
+        // ppoprf wants a vector, so generate one from our range.
+        let epochs: Vec<u8> = epochs.to_owned().collect();
         let epoch = epochs[0];
-        let server = ppoprf::Server::new(epochs.to_owned())?;
+        let server = ppoprf::Server::new(epochs)?;
         Ok(OPRFServer{ server, epoch })
     }
 }
 
-/// Shareable wrapper around the server state
-type OPRFState = Arc<RwLock<OPRFServer>>;
 
 /// Request format for the randomness endpoint
 #[derive(Deserialize, Debug)]
@@ -113,33 +119,33 @@ async fn randomness(
 }
 
 /// Advance to the next epoch on a timer
-async fn epoch_update_loop(state: OPRFState, epochs: Vec<u8>) {
-    let mut future_epochs = Vec::with_capacity(epochs.len() - 1);
-
+async fn epoch_update_loop(state: OPRFState, epochs: EpochRange) {
     let interval = std::time::Duration::from_secs(5);
     info!("rotating epoch every {} seconds", interval.as_secs());
 
     loop {
-        if future_epochs.is_empty() {
-            // Flip the epoch list so we can pop() them off in order.
-            future_epochs = epochs[1..].to_owned();
-            future_epochs.reverse();
-        }
-
         // Wait until the current epoch ends.
         tokio::time::sleep(interval).await;
 
         // Acquire exclusive access to the oprf state.
+        // Panics if this fails, since processing requests with an
+        // expired epoch weakens user privacy.
         let mut s = state.write().expect("Failed to lock OPRFState");
 
         // Puncture the current epoch so it can no longer be used.
         let old_epoch = s.epoch;
         s.server.puncture(old_epoch).expect("Failed to puncture current epoch");
-        // Mark the next epoch as current.
-        if let Some(new_epoch) = future_epochs.pop() {
+
+        // Advance to the next epoch.
+        let new_epoch = old_epoch + 1;
+        if epochs.contains(&new_epoch) {
+            // Server is already initialized for this one.
             s.epoch = new_epoch;
         } else {
             info!("Epochs exhausted! Rotating OPRF key");
+            // Panics if this fails. Puncture should mean we can't
+            // violate privacy through further evaluations, but we
+            // still want to drop the inner state with its private key.
             *s = OPRFServer::new(&epochs)
                 .expect("Could not initialize new PPOPRF state");
         }
@@ -159,17 +165,17 @@ async fn main() {
 
     // Obvlivious function state
     info!("initializing OPRF state...");
-    let epochs: Vec<u8> = (0..255).collect();
+    let epochs = 0..255;
     let server = OPRFServer::new(&epochs)
         .expect("Could not initialize PPOPRF state");
     let oprf_state = Arc::new(RwLock::new(server));
+    info!("epoch now {}", epochs.start);
 
     // Spawn a background process to advance the epoch
     info!("Spawning background task...");
     let background_state = oprf_state.clone();
-    let background_epochs = epochs[1..].to_owned();
     tokio::spawn(async move {
-        epoch_update_loop(background_state, background_epochs).await
+        epoch_update_loop(background_state, epochs).await
     });
 
     // Set up routes and middleware
