@@ -1,12 +1,9 @@
 # Start by building the nitriding proxy daemon.
 FROM golang:1.19 as go-builder
 
-# golangci-lint is not in the golang image, install a binary.
-RUN curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.50.0
-
 WORKDIR /src/
 COPY . .
-RUN make -C nitriding/cmd
+RUN make -C nitriding/cmd nitriding
 
 # Build the web server application itself.
 FROM rust:1.67.1 as rust-builder
