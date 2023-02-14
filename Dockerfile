@@ -18,7 +18,7 @@ RUN cargo build --locked --release
 # and to improve reproducibilty of the build.
 FROM alpine:3.17.2
 COPY --from=go-builder /src/nitriding/cmd/nitriding /usr/local/bin/
-COPY --from=rust-builder /src/star-randsrv/target/release/star-randsrv /usr/local/bin/
+COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
 
 # Set up the run-time environment
 COPY start.sh /usr/local/bin/
