@@ -3,7 +3,7 @@ FROM golang:1.19 as go-builder
 
 WORKDIR /src/
 COPY . .
-RUN cd nitriding/cmd && CGO_ENABLED=0 go build -o nitriding
+RUN make -C nitriding/cmd nitriding
 
 # Build the web server application itself.
 # Use the -alpine variant so it will run in a alpine-based container.
