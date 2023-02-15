@@ -3,10 +3,13 @@ FROM golang:1.19 as go-builder
 
 WORKDIR /src/
 COPY . .
-RUN make -C nitriding/cmd nitriding
+RUN cd nitriding/cmd && CGO_ENABLED=0 go build -o nitriding
 
 # Build the web server application itself.
-FROM rust:1.67.1 as rust-builder
+# Use the -alpine variant so it will run in a alpine-based container.
+FROM rust:1.67.1-alpine as rust-builder
+# Base image may not support C linkage.
+RUN apk add musl-dev
 
 WORKDIR /src/
 COPY . .
@@ -16,7 +19,7 @@ RUN cargo build --locked --release
 
 # Copy from the builder imagse to keep the final image reproducible and small,
 # and to improve reproducibilty of the build.
-FROM debian:11.6-slim
+FROM alpine:3.17.2
 COPY --from=go-builder /src/nitriding/cmd/nitriding /usr/local/bin/
 COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
 
