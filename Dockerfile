@@ -16,7 +16,7 @@ RUN cargo build --locked --release
 
 # Copy from the builder imagse to keep the final image reproducible and small,
 # and to improve reproducibilty of the build.
-FROM alpine:3.17.2
+FROM debian:11.6-slim
 COPY --from=go-builder /src/nitriding/cmd/nitriding /usr/local/bin/
 COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
 
