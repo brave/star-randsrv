@@ -57,6 +57,23 @@ struct RandomnessResponse {
     epoch: u8,
 }
 
+/// Maximum number of points acceptable in a single request
+const MAX_POINTS: usize = 1024;
+
+/// Response format for the info endpoint
+/// Rename fields to match the earlier go implementation.
+#[derive(Serialize, Debug)]
+struct InfoResponse {
+    #[serde(rename = "publicKey")]
+    public_key: String,
+    #[serde(rename = "currentEpoch")]
+    current_epoch: u8,
+    #[serde(rename = "nextEpochTime")]
+    next_epoch_time: String,
+    #[serde(rename = "maxPoints")]
+    max_points: usize,
+}
+
 /// Response returned to report error conditions
 #[derive(Serialize, Debug)]
 struct ErrorResponse {
@@ -114,6 +131,30 @@ async fn randomness(
         points.push(BASE64.encode(evaluation.output.as_bytes()));
     }
     let response = RandomnessResponse { points, epoch };
+    debug!("send: {response:?}");
+    Ok(Json(response))
+}
+
+/// Process PPOPRF epoch and key requests
+async fn info(
+    State(state): State<OPRFState>
+) -> Result<Json<InfoResponse>, Error> {
+    debug!("recv: info reqeust");
+    let state = state.read().map_err(|_| Error::LockFailure)?;
+    let current_epoch = state.epoch;
+    // FIXME: return the end of the current epoch
+    let next_epoch_time = "unknown".to_owned();
+    let max_points = MAX_POINTS;
+    let public_key = state.server.get_public_key()
+        .serialize_to_bincode()
+        .map_err(Error::Oprf)?;
+    let public_key = BASE64.encode(public_key);
+    let response = InfoResponse {
+        current_epoch,
+        next_epoch_time,
+        max_points,
+        public_key,
+    };
     debug!("send: {response:?}");
     Ok(Json(response))
 }
@@ -185,6 +226,7 @@ async fn main() {
         .route("/", get(|| async { "STAR randomness server\n" }))
         // Main endpoint
         .route("/randomness", post(randomness))
+        .route("/info", get(info))
         .with_state(oprf_state)
         // Logging must come after active routes
         .layer(tower_http::trace::TraceLayer::new_for_http());
