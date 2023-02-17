@@ -86,6 +86,8 @@ struct ErrorResponse {
 enum Error {
     LockFailure,
     BadPoint,
+    TooManyPoints,
+    BadEpoch(u8),
     Base64(base64::DecodeError),
     Oprf(ppoprf::PPRFError),
 }
@@ -97,6 +99,10 @@ impl axum::response::IntoResponse for Error {
                 "Couldn't lock state: RwLock poisoned".into(),
             Error::BadPoint =>
                 "Invalid point".into(),
+            Error::TooManyPoints =>
+                "Too many points for a single request".into(),
+            Error::BadEpoch(epoch) =>
+                format!("Invalid epoch {epoch}"),
             Error::Base64(e) =>
                 format!("invalid base64 encoding: {e}"),
             Error::Oprf(e) =>
@@ -115,6 +121,12 @@ async fn randomness(
     debug!("recv: {request:?}");
     let state = state.read().map_err(|_| Error::LockFailure)?;
     let epoch = request.epoch.unwrap_or(state.epoch);
+    if epoch != state.epoch {
+        return Err(Error::BadEpoch(epoch));
+    }
+    if request.points.len() > MAX_POINTS {
+        return Err(Error::TooManyPoints);
+    }
     let prove = false;
     let mut points = Vec::with_capacity(request.points.len());
     for base64_point in request.points {
