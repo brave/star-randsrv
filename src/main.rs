@@ -206,6 +206,21 @@ async fn epoch_update_loop(state: OPRFState, epochs: EpochRange) {
     }
 }
 
+/// Initialize an axum::Router for our web service
+///
+/// Having this as a separate function makes testing easier.
+fn app(oprf_state: OPRFState) -> Router {
+    Router::new()
+        // Friendly default route to identify the site
+        .route("/", get(|| async { "STAR randomness server\n" }))
+        // Main endpoint
+        .route("/randomness", post(randomness))
+        .route("/info", get(info))
+        .with_state(oprf_state)
+        // Logging must come after active routes
+        .layer(tower_http::trace::TraceLayer::new_for_http())
+}
+
 #[tokio::main]
 async fn main() {
     // Start logging
@@ -233,15 +248,7 @@ async fn main() {
 
     // Set up routes and middleware
     info!("initializing routes...");
-    let app = Router::new()
-        // Friendly default route to identify the site
-        .route("/", get(|| async { "STAR randomness server\n" }))
-        // Main endpoint
-        .route("/randomness", post(randomness))
-        .route("/info", get(info))
-        .with_state(oprf_state)
-        // Logging must come after active routes
-        .layer(tower_http::trace::TraceLayer::new_for_http());
+    let app = app(oprf_state);
 
     // Start the server
     let addr = "127.0.0.1:8080".parse().unwrap();
@@ -250,4 +257,33 @@ async fn main() {
         .serve(app.into_make_service())
         .await
         .unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, RwLock};
+    use axum::body::Body;
+    use axum::http::Request;
+    use axum::http::StatusCode;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn welcome_endpoint() {
+        let epochs = 0..5;
+        let server = crate::OPRFServer::new(&epochs)
+            .expect("Could not initialize PPOPRF state");
+        let oprf_state = Arc::new(RwLock::new(server));
+        let app = crate::app(oprf_state);
+
+        let request = Request::builder()
+            .uri("/")
+            .body(Body::empty())
+            .unwrap();
+        let response = app.oneshot(request).await.unwrap();
+
+        // Root should return some identifying text for friendliness.
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        assert!(body.len() > 0);
+    }
 }
