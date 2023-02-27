@@ -151,7 +151,7 @@ async fn randomness(
 async fn info(
     State(state): State<OPRFState>
 ) -> Result<Json<InfoResponse>, Error> {
-    debug!("recv: info reqeust");
+    debug!("recv: info request");
     let state = state.read().map_err(|_| Error::LockFailure)?;
     let current_epoch = state.epoch;
     // FIXME: return the end of the current epoch
