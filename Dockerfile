@@ -1,5 +1,5 @@
 # Start by building the nitriding proxy daemon.
-FROM golang:1.19 as go-builder
+FROM golang:1.20 as go-builder
 
 WORKDIR /src/
 COPY . .
