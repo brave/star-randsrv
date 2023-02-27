@@ -3,7 +3,7 @@ name = "star-randsrv"
 version = "0.1.0"
 authors = ["Ralph Giles <rgiles@brave.com>"]
 description = "Web wrapper for the STAR randomness server"
-edition = "2018"
+edition = "2021"
 
 [dependencies]
 axum = "0.6.1"
