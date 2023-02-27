@@ -231,7 +231,7 @@ async fn main() {
     tracing_subscriber::fmt::init();
     info!("Staring up!");
 
-    // Obvlivious function state
+    // Oblivious function state
     info!("initializing OPRF state...");
     let epochs = 0..255;
     let server = OPRFServer::new(&epochs)
