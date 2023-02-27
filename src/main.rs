@@ -87,7 +87,7 @@ struct ErrorResponse {
 /// handling requests.
 #[derive(thiserror::Error, Debug)]
 enum Error {
-    #[error("Couldn't lcok state: RwLock poisoned")]
+    #[error("Couldn't lock state: RwLock poisoned")]
     LockFailure,
     #[error("Invalid point")]
     BadPoint,
@@ -99,6 +99,18 @@ enum Error {
     Base64(#[from] base64::DecodeError),
     #[error("PPOPRF error: {0}")]
     Oprf(#[from] ppoprf::PPRFError),
+}
+
+/// thiserror doesn't generate a `From` impl without
+/// an inner value to wrap. Write one explicitly for
+/// `std::sync::PoisonError<T>` to avoid making the
+/// whole `Error` struct generic. This allows use to
+/// use `?` with `RwLock` methods instead of an
+/// explicit `.map_err()`.
+impl<T> From<std::sync::PoisonError<T>> for Error {
+    fn from(_: std::sync::PoisonError<T>) -> Self {
+        Error::LockFailure
+    }
 }
 
 impl axum::response::IntoResponse for Error {
@@ -116,7 +128,7 @@ async fn randomness(
     Json(request): Json<RandomnessRequest>,
 ) -> Result<Json<RandomnessResponse>, Error> {
     debug!("recv: {request:?}");
-    let state = state.read().map_err(|_| Error::LockFailure)?;
+    let state = state.read()?;
     let epoch = request.epoch.unwrap_or(state.epoch);
     if epoch != state.epoch {
         return Err(Error::BadEpoch(epoch));
@@ -127,16 +139,14 @@ async fn randomness(
     let prove = false;
     let mut points = Vec::with_capacity(request.points.len());
     for base64_point in request.points {
-        let input = BASE64.decode(base64_point)
-            .map_err(Error::Base64)?;
+        let input = BASE64.decode(base64_point)?;
         // FIXME: Point::from is fallible and needs to return a result.
         // partial work-around: check correct length
         if input.len() != ppoprf::COMPRESSED_POINT_LEN {
             return Err(Error::BadPoint);
         }
         let point = ppoprf::Point::from(input.as_slice());
-        let evaluation = state.server.eval(&point, epoch, prove)
-            .map_err(Error::Oprf)?;
+        let evaluation = state.server.eval(&point, epoch, prove)?;
         points.push(BASE64.encode(evaluation.output.as_bytes()));
     }
     let response = RandomnessResponse { points, epoch };
@@ -149,14 +159,12 @@ async fn info(
     State(state): State<OPRFState>
 ) -> Result<Json<InfoResponse>, Error> {
     debug!("recv: info request");
-    let state = state.read().map_err(|_| Error::LockFailure)?;
+    let state = state.read()?;
     let current_epoch = state.epoch;
     // FIXME: return the end of the current epoch
     let next_epoch_time = "unknown".to_owned();
     let max_points = MAX_POINTS;
-    let public_key = state.server.get_public_key()
-        .serialize_to_bincode()
-        .map_err(Error::Oprf)?;
+    let public_key = state.server.get_public_key().serialize_to_bincode()?;
     let public_key = BASE64.encode(public_key);
     let response = InfoResponse {
         current_epoch,
