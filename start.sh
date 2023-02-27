@@ -2,7 +2,7 @@
 
 nitriding \
 	-acme \
-	-fqdn "nitro.nymity.ch" \
+	-fqdn "star-randsrv.bsg.brave.software" \
 	-appurl "https://github.com/brave/star-randsrv" \
 	-appwebsrv "http://127.0.0.1:8080" \
 	-extport 8443 \
