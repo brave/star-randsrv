@@ -82,33 +82,30 @@ struct ErrorResponse {
 }
 
 /// Server error conditions
-#[derive(Debug)]
+///
+/// Used to generate an `ErrorResponse` from the `?` operator
+/// handling requests.
+#[derive(thiserror::Error, Debug)]
 enum Error {
+    #[error("Couldn't lcok state: RwLock poisoned")]
     LockFailure,
+    #[error("Invalid point")]
     BadPoint,
+    #[error("Too many points for a single request")]
     TooManyPoints,
+    #[error("Invalid epoch {0}`")]
     BadEpoch(u8),
-    Base64(base64::DecodeError),
-    Oprf(ppoprf::PPRFError),
+    #[error("Invalid base64 encoding: {0}")]
+    Base64(#[from] base64::DecodeError),
+    #[error("PPOPRF error: {0}")]
+    Oprf(#[from] ppoprf::PPRFError),
 }
 
 impl axum::response::IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
-        let message = match self {
-            Error::LockFailure =>
-                "Couldn't lock state: RwLock poisoned".into(),
-            Error::BadPoint =>
-                "Invalid point".into(),
-            Error::TooManyPoints =>
-                "Too many points for a single request".into(),
-            Error::BadEpoch(epoch) =>
-                format!("Invalid epoch {epoch}"),
-            Error::Base64(e) =>
-                format!("invalid base64 encoding: {e}"),
-            Error::Oprf(e) =>
-                format!("PPOPRF error: {e}"),
-        };
-        let body = Json(ErrorResponse { message });
+        let body = Json(ErrorResponse {
+            message: self.to_string(),
+        });
         (StatusCode::BAD_REQUEST, body).into_response()
     }
 }
