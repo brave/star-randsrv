@@ -1,7 +1,7 @@
 //! STAR Randomness web service
 
 use axum::extract::{Json, State};
-use axum ::http::StatusCode;
+use axum::http::StatusCode;
 use axum::{routing::get, routing::post, Router};
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
@@ -9,7 +9,6 @@ use tracing::{debug, info};
 
 use ppoprf::ppoprf;
 use std::sync::{Arc, RwLock};
-
 
 /// Internal state of the OPRF service
 struct OPRFServer {
@@ -31,10 +30,9 @@ impl OPRFServer {
         let epochs: Vec<u8> = epochs.to_owned().collect();
         let epoch = epochs[0];
         let server = ppoprf::Server::new(epochs)?;
-        Ok(OPRFServer{ server, epoch })
+        Ok(OPRFServer { server, epoch })
     }
 }
-
 
 /// Request format for the randomness endpoint
 #[derive(Deserialize, Debug)]
@@ -156,7 +154,7 @@ async fn randomness(
 
 /// Process PPOPRF epoch and key requests
 async fn info(
-    State(state): State<OPRFState>
+    State(state): State<OPRFState>,
 ) -> Result<Json<InfoResponse>, Error> {
     debug!("recv: info request");
     let state = state.read()?;
@@ -192,7 +190,9 @@ async fn epoch_update_loop(state: OPRFState, epochs: EpochRange) {
 
         // Puncture the current epoch so it can no longer be used.
         let old_epoch = s.epoch;
-        s.server.puncture(old_epoch).expect("Failed to puncture current epoch");
+        s.server
+            .puncture(old_epoch)
+            .expect("Failed to puncture current epoch");
 
         // Advance to the next epoch.
         let new_epoch = old_epoch + 1;
@@ -239,17 +239,17 @@ async fn main() {
     // Oblivious function state
     info!("initializing OPRF state...");
     let epochs = 0..255;
-    let server = OPRFServer::new(&epochs)
-        .expect("Could not initialize PPOPRF state");
+    let server =
+        OPRFServer::new(&epochs).expect("Could not initialize PPOPRF state");
     let oprf_state = Arc::new(RwLock::new(server));
     info!("epoch now {}", epochs.start);
 
     // Spawn a background process to advance the epoch
     info!("Spawning background task...");
     let background_state = oprf_state.clone();
-    tokio::spawn(async move {
-        epoch_update_loop(background_state, epochs).await
-    });
+    tokio::spawn(
+        async move { epoch_update_loop(background_state, epochs).await },
+    );
 
     // Set up routes and middleware
     info!("initializing routes...");
@@ -266,10 +266,10 @@ async fn main() {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, RwLock};
     use axum::body::Body;
     use axum::http::Request;
     use axum::http::StatusCode;
+    use std::sync::{Arc, RwLock};
     use tower::ServiceExt;
 
     #[tokio::test]
@@ -280,10 +280,8 @@ mod tests {
         let oprf_state = Arc::new(RwLock::new(server));
         let app = crate::app(oprf_state);
 
-        let request = Request::builder()
-            .uri("/")
-            .body(Body::empty())
-            .unwrap();
+        let request =
+            Request::builder().uri("/").body(Body::empty()).unwrap();
         let response = app.oneshot(request).await.unwrap();
 
         // Root should return some identifying text for friendliness.
