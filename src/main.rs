@@ -234,7 +234,7 @@ async fn main() {
     //let logger = tracing_subscriber::FmtSubscriber::new();
     //tracing::subscriber::set_global_default(logger).unwrap();
     tracing_subscriber::fmt::init();
-    info!("Staring up!");
+    info!("STARing up!");
 
     // Oblivious function state
     info!("initializing OPRF state...");
