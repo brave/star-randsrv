@@ -27,7 +27,8 @@ impl OPRFServer {
     /// Initialize a new OPRFServer state supporting the given list of epochs
     fn new(config: &Config) -> Result<Self, ppoprf::PPRFError> {
         // ppoprf wants a vector, so generate one from our range.
-        let epochs: Vec<u8> = (config.first_epoch..=config.last_epoch).collect();
+        let epochs: Vec<u8> =
+            (config.first_epoch..=config.last_epoch).collect();
         let epoch = epochs[0];
         let server = ppoprf::Server::new(epochs)?;
         Ok(OPRFServer { server, epoch })
@@ -176,10 +177,11 @@ async fn info(
 
 /// Advance to the next epoch on a timer
 async fn epoch_update_loop(state: OPRFState, config: &Config) {
-    let interval = std::time::Duration::from_secs(config.epoch_seconds.into());
+    let interval =
+        std::time::Duration::from_secs(config.epoch_seconds.into());
     info!("rotating epoch every {} seconds", interval.as_secs());
 
-    let epochs = config.first_epoch ..= config.last_epoch;
+    let epochs = config.first_epoch..=config.last_epoch;
     loop {
         // Wait until the current epoch ends.
         tokio::time::sleep(interval).await;
@@ -266,9 +268,9 @@ async fn main() {
     // Spawn a background process to advance the epoch
     info!("Spawning background task...");
     let background_state = oprf_state.clone();
-    tokio::spawn(
-        async move { epoch_update_loop(background_state, &config).await },
-    );
+    tokio::spawn(async move {
+        epoch_update_loop(background_state, &config).await
+    });
 
     // Set up routes and middleware
     info!("initializing routes...");
