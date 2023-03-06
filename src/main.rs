@@ -10,6 +10,8 @@ use tracing::{debug, info};
 use ppoprf::ppoprf;
 use std::sync::{Arc, RwLock};
 
+use clap::Parser;
+
 /// Internal state of the OPRF service
 struct OPRFServer {
     /// oprf implementation
@@ -20,14 +22,12 @@ struct OPRFServer {
 
 /// Shareable wrapper around the server state
 type OPRFState = Arc<RwLock<OPRFServer>>;
-/// Represents an contiguous range of configured randomness epochs
-type EpochRange = std::ops::Range<u8>;
 
 impl OPRFServer {
     /// Initialize a new OPRFServer state supporting the given list of epochs
-    fn new(epochs: &EpochRange) -> Result<Self, ppoprf::PPRFError> {
+    fn new(config: &Config) -> Result<Self, ppoprf::PPRFError> {
         // ppoprf wants a vector, so generate one from our range.
-        let epochs: Vec<u8> = epochs.to_owned().collect();
+        let epochs: Vec<u8> = (config.first_epoch..=config.last_epoch).collect();
         let epoch = epochs[0];
         let server = ppoprf::Server::new(epochs)?;
         Ok(OPRFServer { server, epoch })
@@ -175,10 +175,11 @@ async fn info(
 }
 
 /// Advance to the next epoch on a timer
-async fn epoch_update_loop(state: OPRFState, epochs: EpochRange) {
-    let interval = std::time::Duration::from_secs(5);
+async fn epoch_update_loop(state: OPRFState, config: &Config) {
+    let interval = std::time::Duration::from_secs(config.epoch_seconds.into());
     info!("rotating epoch every {} seconds", interval.as_secs());
 
+    let epochs = config.first_epoch ..= config.last_epoch;
     loop {
         // Wait until the current epoch ends.
         tokio::time::sleep(interval).await;
@@ -204,7 +205,7 @@ async fn epoch_update_loop(state: OPRFState, epochs: EpochRange) {
             // Panics if this fails. Puncture should mean we can't
             // violate privacy through further evaluations, but we
             // still want to drop the inner state with its private key.
-            *s = OPRFServer::new(&epochs)
+            *s = OPRFServer::new(config)
                 .expect("Could not initialize new PPOPRF state");
         }
         info!("epoch now {}", s.epoch);
@@ -226,6 +227,21 @@ fn app(oprf_state: OPRFState) -> Router {
         .layer(tower_http::trace::TraceLayer::new_for_http())
 }
 
+/// Command line switches
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Config {
+    /// Duration of each randomness epoch
+    #[arg(long, default_value_t = 5)]
+    epoch_seconds: u32,
+    /// First epoch tag to make available
+    #[arg(long, default_value_t = 0)]
+    first_epoch: u8,
+    /// Last epoch tag to make available
+    #[arg(long, default_value_t = 255)]
+    last_epoch: u8,
+}
+
 #[tokio::main]
 async fn main() {
     // Start logging
@@ -236,19 +252,22 @@ async fn main() {
     tracing_subscriber::fmt::init();
     info!("STARing up!");
 
+    // Command line switches
+    let config = Config::parse();
+    debug!("{config:?}");
+
     // Oblivious function state
     info!("initializing OPRF state...");
-    let epochs = 0..255;
     let server =
-        OPRFServer::new(&epochs).expect("Could not initialize PPOPRF state");
+        OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
+    info!("epoch now {}", server.epoch);
     let oprf_state = Arc::new(RwLock::new(server));
-    info!("epoch now {}", epochs.start);
 
     // Spawn a background process to advance the epoch
     info!("Spawning background task...");
     let background_state = oprf_state.clone();
     tokio::spawn(
-        async move { epoch_update_loop(background_state, epochs).await },
+        async move { epoch_update_loop(background_state, &config).await },
     );
 
     // Set up routes and middleware
@@ -274,8 +293,12 @@ mod tests {
 
     #[tokio::test]
     async fn welcome_endpoint() {
-        let epochs = 0..5;
-        let server = crate::OPRFServer::new(&epochs)
+        let config = crate::Config {
+            epoch_seconds: 1,
+            first_epoch: 12,
+            last_epoch: 24,
+        };
+        let server = crate::OPRFServer::new(&config)
             .expect("Could not initialize PPOPRF state");
         let oprf_state = Arc::new(RwLock::new(server));
         let app = crate::app(oprf_state);
