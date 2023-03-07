@@ -290,6 +290,7 @@ mod tests {
     use axum::body::Body;
     use axum::http::Request;
     use axum::http::StatusCode;
+    use serde_json::{json, Value};
     use std::sync::{Arc, RwLock};
     use tower::ServiceExt;
 
@@ -313,5 +314,35 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         assert!(body.len() > 0);
+    }
+
+    #[tokio::test]
+    async fn info_endpoint() {
+        let config = crate::Config {
+            epoch_seconds: 10,
+            first_epoch: 42,
+            last_epoch: 42,
+        };
+        let server = crate::OPRFServer::new(&config)
+            .expect("Could not initialize PPOPRF state");
+        let oprf_state = Arc::new(RwLock::new(server));
+        let app = crate::app(oprf_state);
+
+        let request =
+            Request::builder().uri("/info").body(Body::empty()).unwrap();
+        let response = app.oneshot(request).await.unwrap();
+
+        // Info should return the correct epoch, etc.
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        assert!(!body.is_empty());
+        let json: Value = serde_json::from_slice(body.as_ref())
+            .expect("Could not parse response body as json");
+        assert!(json.is_object());
+        println!("{:?}", json);
+        assert_eq!(json["currentEpoch"], json!(config.first_epoch));
+        assert!(json["nextEpochTime"].is_string());
+        assert!(json["publicKey"].is_string());
+        assert!(json["maxPoints"].is_number());
     }
 }
