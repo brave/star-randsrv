@@ -290,6 +290,7 @@ mod tests {
     use axum::body::Body;
     use axum::http::Request;
     use axum::http::StatusCode;
+    use base64::prelude::Engine as _;
     use serde_json::{json, Value};
     use std::sync::{Arc, RwLock};
     use tower::ServiceExt;
@@ -342,7 +343,11 @@ mod tests {
         println!("{:?}", json);
         assert_eq!(json["currentEpoch"], json!(config.first_epoch));
         assert!(json["nextEpochTime"].is_string());
-        assert!(json["publicKey"].is_string());
         assert!(json["maxPoints"].is_number());
+        assert!(json["publicKey"].is_string());
+        let b64key = json["publicKey"].as_str().unwrap();
+        let binkey = crate::BASE64.decode(b64key).unwrap();
+        let _ = ppoprf::ppoprf::ServerPublicKey::load_from_bincode(&binkey)
+            .expect("Could not parse server public key");
     }
 }
