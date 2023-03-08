@@ -335,7 +335,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn welcome_endpoint() {
+    async fn welcome() {
         let app = test_app();
 
         let request = test_request("/", None);
@@ -349,7 +349,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn info_endpoint() {
+    async fn info() {
         let app = test_app();
 
         let request = test_request("/info", None);
@@ -374,7 +374,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn randomness_endpoint() {
+    async fn randomness() {
         let app = test_app();
 
         let point = RistrettoPoint::random(&mut rand_core::OsRng);
