@@ -344,7 +344,8 @@ mod tests {
         // Root should return some identifying text for friendliness.
         assert_eq!(response.status(), StatusCode::OK);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-        assert!(body.len() > 0);
+        let message = std::str::from_utf8(body.as_ref()).unwrap();
+        assert!(message.len() > 0);
     }
 
     #[tokio::test]
