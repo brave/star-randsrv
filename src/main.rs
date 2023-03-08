@@ -291,6 +291,7 @@ mod tests {
     use axum::http::Request;
     use axum::http::StatusCode;
     use base64::prelude::Engine as _;
+    use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
     use serde_json::{json, Value};
     use std::sync::{Arc, RwLock};
     use tower::ServiceExt;
@@ -349,5 +350,48 @@ mod tests {
         let binkey = crate::BASE64.decode(b64key).unwrap();
         let _ = ppoprf::ppoprf::ServerPublicKey::load_from_bincode(&binkey)
             .expect("Could not parse server public key");
+    }
+
+    #[tokio::test]
+    async fn randomness_endpoint() {
+        let config = crate::Config {
+            epoch_seconds: 256,
+            first_epoch: 72,
+            last_epoch: 84,
+        };
+        let server = crate::OPRFServer::new(&config)
+            .expect("Could not initialize PPOPRF state");
+        let oprf_state = Arc::new(RwLock::new(server));
+        let app = crate::app(oprf_state);
+
+        let point = RistrettoPoint::random(&mut rand_core::OsRng);
+        let payload = json!({ "points": [
+            crate::BASE64.encode(point.compress().as_bytes())
+        ]}).to_string();
+        println!("request body {payload:?}");
+
+        let request = Request::builder().uri("/randomness")
+            .method("POST")
+            .header("Content-Type", "application/json")
+            .body(payload.into()).unwrap();
+        println!("request {request:?}");
+        let response = app.oneshot(request).await.unwrap();
+        println!("response {response:?}");
+
+        // Randomness should return a list of points an an epoch
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        assert!(!body.is_empty());
+        let json: Value = serde_json::from_slice(body.as_ref())
+            .expect("Could not parse response body as json");
+        assert!(json.is_object());
+        println!("response body {json:?}");
+        let epoch = json["epoch"].as_u64().unwrap();
+        assert_eq!(epoch, config.first_epoch as u64);
+        let points = json["points"].as_array().unwrap();
+        assert_eq!(points.len(), 1);
+        let b64point = points[0].as_str().unwrap();
+        let point = crate::BASE64.decode(b64point).unwrap();
+        let _ = CompressedRistretto::from_slice(&point);
     }
 }

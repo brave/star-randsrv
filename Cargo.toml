@@ -21,4 +21,5 @@ tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
 
 [dev-dependencies]
 hyper = "0.14.24"
+rand_core = { version = "0.5.1", features = ["getrandom"] }
 tower = "0.4.13"
