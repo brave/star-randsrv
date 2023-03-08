@@ -296,17 +296,28 @@ mod tests {
     use std::sync::{Arc, RwLock};
     use tower::ServiceExt;
 
-    #[tokio::test]
-    async fn welcome_endpoint() {
+    const EPOCH: u8 = 12;
+
+    /// Create a app instance for testing
+    fn test_app() -> crate::Router {
+        // arbitrary config
         let config = crate::Config {
             epoch_seconds: 1,
-            first_epoch: 12,
-            last_epoch: 24,
+            first_epoch: EPOCH,
+            last_epoch: EPOCH * 2,
         };
+        // server state
         let server = crate::OPRFServer::new(&config)
             .expect("Could not initialize PPOPRF state");
         let oprf_state = Arc::new(RwLock::new(server));
-        let app = crate::app(oprf_state);
+
+        // attach axum routes and middleware
+        crate::app(oprf_state)
+    }
+
+    #[tokio::test]
+    async fn welcome_endpoint() {
+        let app = test_app();
 
         let request =
             Request::builder().uri("/").body(Body::empty()).unwrap();
@@ -320,15 +331,7 @@ mod tests {
 
     #[tokio::test]
     async fn info_endpoint() {
-        let config = crate::Config {
-            epoch_seconds: 10,
-            first_epoch: 42,
-            last_epoch: 42,
-        };
-        let server = crate::OPRFServer::new(&config)
-            .expect("Could not initialize PPOPRF state");
-        let oprf_state = Arc::new(RwLock::new(server));
-        let app = crate::app(oprf_state);
+        let app = test_app();
 
         let request =
             Request::builder().uri("/info").body(Body::empty()).unwrap();
@@ -342,7 +345,7 @@ mod tests {
             .expect("Could not parse response body as json");
         assert!(json.is_object());
         println!("{:?}", json);
-        assert_eq!(json["currentEpoch"], json!(config.first_epoch));
+        assert_eq!(json["currentEpoch"], json!(EPOCH));
         assert!(json["nextEpochTime"].is_string());
         assert!(json["maxPoints"].is_number());
         assert!(json["publicKey"].is_string());
@@ -354,15 +357,7 @@ mod tests {
 
     #[tokio::test]
     async fn randomness_endpoint() {
-        let config = crate::Config {
-            epoch_seconds: 256,
-            first_epoch: 72,
-            last_epoch: 84,
-        };
-        let server = crate::OPRFServer::new(&config)
-            .expect("Could not initialize PPOPRF state");
-        let oprf_state = Arc::new(RwLock::new(server));
-        let app = crate::app(oprf_state);
+        let app = test_app();
 
         let point = RistrettoPoint::random(&mut rand_core::OsRng);
         let payload = json!({ "points": [
@@ -387,7 +382,7 @@ mod tests {
         assert!(json.is_object());
         println!("response body {json:?}");
         let epoch = json["epoch"].as_u64().unwrap();
-        assert_eq!(epoch, config.first_epoch as u64);
+        assert_eq!(epoch, EPOCH as u64);
         let points = json["points"].as_array().unwrap();
         assert_eq!(points.len(), 1);
         let b64point = points[0].as_str().unwrap();
