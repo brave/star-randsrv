@@ -315,12 +315,30 @@ mod tests {
         crate::app(oprf_state)
     }
 
+    /// Create a request for testing
+    fn test_request(uri: &str, payload: Option<String>) -> Request<Body> {
+        let builder = Request::builder().uri(uri);
+        let request = match payload {
+            Some(json) => {
+                // POST payload body as json
+                builder
+                    .method("POST")
+                    .header("Content-Type", "application/json")
+                    .body(json.into())
+            },
+            None => {
+                // regular GET request
+                builder.body(Body::empty())
+            },
+        };
+        request.unwrap()
+    }
+
     #[tokio::test]
     async fn welcome_endpoint() {
         let app = test_app();
 
-        let request =
-            Request::builder().uri("/").body(Body::empty()).unwrap();
+        let request = test_request("/", None);
         let response = app.oneshot(request).await.unwrap();
 
         // Root should return some identifying text for friendliness.
@@ -333,8 +351,7 @@ mod tests {
     async fn info_endpoint() {
         let app = test_app();
 
-        let request =
-            Request::builder().uri("/info").body(Body::empty()).unwrap();
+        let request = test_request("/info", None);
         let response = app.oneshot(request).await.unwrap();
 
         // Info should return the correct epoch, etc.
@@ -365,10 +382,7 @@ mod tests {
         ]}).to_string();
         println!("request body {payload:?}");
 
-        let request = Request::builder().uri("/randomness")
-            .method("POST")
-            .header("Content-Type", "application/json")
-            .body(payload.into()).unwrap();
+        let request = test_request("/randomness", Some(payload));
         println!("request {request:?}");
         let response = app.oneshot(request).await.unwrap();
         println!("response {response:?}");
