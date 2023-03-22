@@ -327,8 +327,9 @@ mod tests {
             last_epoch: EPOCH * 2,
         };
         // server state
-        let server = crate::OPRFServer::new(&config)
+        let mut server = crate::OPRFServer::new(&config)
             .expect("Could not initialize PPOPRF state");
+        server.next_epoch_time = Some("2023-03-22T21:46:35Z".to_owned());
         let oprf_state = Arc::new(RwLock::new(server));
 
         // attach axum routes and middleware
