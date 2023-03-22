@@ -5,6 +5,7 @@ use axum::http::StatusCode;
 use axum::{routing::get, routing::post, Router};
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
+use time::format_description::well_known::Rfc3339;
 use tracing::{debug, info};
 
 use ppoprf::ppoprf;
@@ -18,6 +19,8 @@ struct OPRFServer {
     server: ppoprf::Server,
     /// currently-valid randomness epoch
     epoch: u8,
+    /// RFC 3339 timestamp of the next epoch rotation
+    next_epoch_time: Option<String>,
 }
 
 /// Shareable wrapper around the server state
@@ -31,7 +34,7 @@ impl OPRFServer {
             (config.first_epoch..=config.last_epoch).collect();
         let epoch = epochs[0];
         let server = ppoprf::Server::new(epochs)?;
-        Ok(OPRFServer { server, epoch })
+        Ok(OPRFServer { server, epoch, next_epoch_time: None })
     }
 }
 
@@ -68,7 +71,7 @@ struct InfoResponse {
     #[serde(rename = "currentEpoch")]
     current_epoch: u8,
     #[serde(rename = "nextEpochTime")]
-    next_epoch_time: String,
+    next_epoch_time: Option<String>,
     #[serde(rename = "maxPoints")]
     max_points: usize,
 }
@@ -160,8 +163,7 @@ async fn info(
     debug!("recv: info request");
     let state = state.read()?;
     let current_epoch = state.epoch;
-    // FIXME: return the end of the current epoch
-    let next_epoch_time = "unknown".to_owned();
+    let next_epoch_time = state.next_epoch_time.clone();
     let max_points = MAX_POINTS;
     let public_key = state.server.get_public_key().serialize_to_bincode()?;
     let public_key = BASE64.encode(public_key);
@@ -183,6 +185,21 @@ async fn epoch_update_loop(state: OPRFState, config: &Config) {
 
     let epochs = config.first_epoch..=config.last_epoch;
     loop {
+        // Pre-calculate the next_epoch_time for the InfoResponse hander.
+        // This acquires a temporary write lock which should be dropped
+        // before sleeping.
+        {
+            let now = time::OffsetDateTime::now_utc();
+            let next_rotation = now + interval;
+            let timestamp = next_rotation.format(&Rfc3339)
+                .expect("well_known timestamp format should always succeed");
+            // Locking should not fail, but if it does we can't set the field
+            // back to None, so panic rather than report stale information.
+            let mut s = state.write()
+                .expect("should be able to update next_epoch_time");
+            s.next_epoch_time = Some(timestamp);
+        }
+
         // Wait until the current epoch ends.
         tokio::time::sleep(interval).await;
 
