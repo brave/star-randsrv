@@ -191,6 +191,9 @@ async fn epoch_update_loop(state: OPRFState, config: &Config) {
         {
             let now = time::OffsetDateTime::now_utc();
             let next_rotation = now + interval;
+            // Round to the nearest second
+            let next_rotation = next_rotation.replace_millisecond(0)
+                .expect("should be able to round to a fixed ms.");
             let timestamp = next_rotation.format(&Rfc3339)
                 .expect("well_known timestamp format should always succeed");
             // Locking should not fail, but if it does we can't set the field
