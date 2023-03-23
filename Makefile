@@ -1,7 +1,5 @@
 binary = star-randsrv
 image = $(binary):latest
-godeps = *.go go.mod go.sum
-stardeps = include/ppoprf.h target/release/libstar_ppoprf_ffi.a
 
 .PHONY: all test lint eif $(binary) clean
 
