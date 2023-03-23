@@ -327,6 +327,7 @@ mod tests {
     use tower::ServiceExt;
 
     const EPOCH: u8 = 12;
+    const NEXT_EPOCH_TIME: &str = "2023-03-22T21:46:35Z";
 
     /// Create an app instance for testing
     fn test_app() -> crate::Router {
@@ -339,7 +340,7 @@ mod tests {
         // server state
         let mut server = crate::OPRFServer::new(&config)
             .expect("Could not initialize PPOPRF state");
-        server.next_epoch_time = Some("2023-03-22T21:46:35Z".to_owned());
+        server.next_epoch_time = Some(NEXT_EPOCH_TIME.to_owned());
         let oprf_state = Arc::new(RwLock::new(server));
 
         // attach axum routes and middleware
@@ -396,7 +397,11 @@ mod tests {
         println!("{:?}", json);
         assert_eq!(json["currentEpoch"], json!(EPOCH));
         assert!(json["nextEpochTime"].is_string());
+        let next_epoch_time = json["nextEpochTime"].as_str().unwrap();
+        assert_eq!(next_epoch_time, NEXT_EPOCH_TIME);
         assert!(json["maxPoints"].is_number());
+        let max_points = json["maxPoints"].as_u64().unwrap();
+        assert_eq!(max_points, crate::MAX_POINTS as u64);
         assert!(json["publicKey"].is_string());
         let b64key = json["publicKey"].as_str().unwrap();
         let binkey = crate::BASE64.decode(b64key).unwrap();
