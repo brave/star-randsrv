@@ -34,7 +34,11 @@ impl OPRFServer {
             (config.first_epoch..=config.last_epoch).collect();
         let epoch = epochs[0];
         let server = ppoprf::Server::new(epochs)?;
-        Ok(OPRFServer { server, epoch, next_epoch_time: None })
+        Ok(OPRFServer {
+            server,
+            epoch,
+            next_epoch_time: None,
+        })
     }
 }
 
@@ -201,13 +205,16 @@ async fn epoch_update_loop(state: OPRFState, config: &Config) {
             let now = time::OffsetDateTime::now_utc();
             let next_rotation = now + interval;
             // Truncate to the nearest second.
-            let next_rotation = next_rotation.replace_millisecond(0)
+            let next_rotation = next_rotation
+                .replace_millisecond(0)
                 .expect("should be able to round to a fixed ms.");
-            let timestamp = next_rotation.format(&Rfc3339)
+            let timestamp = next_rotation
+                .format(&Rfc3339)
                 .expect("well_known timestamp format should always succeed");
             // Locking should not fail, but if it does we can't set the field
             // back to None, so panic rather than report stale information.
-            let mut s = state.write()
+            let mut s = state
+                .write()
                 .expect("should be able to update next_epoch_time");
             s.next_epoch_time = Some(timestamp);
         }
@@ -352,11 +359,11 @@ mod tests {
                     .method("POST")
                     .header("Content-Type", "application/json")
                     .body(json.into())
-            },
+            }
             None => {
                 // regular GET request
                 builder.body(Body::empty())
-            },
+            }
         };
         request.unwrap()
     }
@@ -407,7 +414,8 @@ mod tests {
         let point = RistrettoPoint::random(&mut rand_core::OsRng);
         let payload = json!({ "points": [
             crate::BASE64.encode(point.compress().as_bytes())
-        ]}).to_string();
+        ]})
+        .to_string();
         println!("request body {payload:?}");
 
         let request = test_request("/randomness", Some(payload));
