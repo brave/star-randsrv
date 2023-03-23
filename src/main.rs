@@ -175,15 +175,12 @@ async fn info(
 ) -> Result<Json<InfoResponse>, Error> {
     debug!("recv: info request");
     let state = state.read()?;
-    let current_epoch = state.epoch;
-    let next_epoch_time = state.next_epoch_time.clone();
-    let max_points = MAX_POINTS;
     let public_key = state.server.get_public_key().serialize_to_bincode()?;
     let public_key = BASE64.encode(public_key);
     let response = InfoResponse {
-        current_epoch,
-        next_epoch_time,
-        max_points,
+        current_epoch: state.epoch,
+        next_epoch_time: state.next_epoch_time.clone(),
+        max_points: MAX_POINTS,
         public_key,
     };
     debug!("send: {response:?}");
