@@ -27,7 +27,7 @@ struct OPRFServer {
 type OPRFState = Arc<RwLock<OPRFServer>>;
 
 impl OPRFServer {
-    /// Initialize a new OPRFServer state supporting the given list of epochs
+    /// Initialize a new OPRFServer state with the given configuration
     fn new(config: &Config) -> Result<Self, ppoprf::PPRFError> {
         // ppoprf wants a vector, so generate one from our range.
         let epochs: Vec<u8> =
@@ -42,7 +42,7 @@ impl OPRFServer {
 #[derive(Deserialize, Debug)]
 struct RandomnessRequest {
     /// Array of points to evaluate
-    /// Should be base64-encoded compressed Ristretto curve points
+    /// Should be base64-encoded, compressed Ristretto curve points.
     points: Vec<String>,
     /// Optional request for evaluation within a specific epoch
     epoch: Option<u8>,
@@ -52,10 +52,10 @@ struct RandomnessRequest {
 #[derive(Serialize, Debug)]
 struct RandomnessResponse {
     /// Resulting points from the OPRF valuation
-    /// Should be base64-encode compressed points in one-to-one
-    /// correspondence with the request points.
+    /// Should be base64-encoded, compressed points in one-to-one
+    /// correspondence with the request points array.
     points: Vec<String>,
-    /// Randomness epoch used in the evaluation.
+    /// Randomness epoch used in the evaluation
     epoch: u8,
 }
 
@@ -63,15 +63,21 @@ struct RandomnessResponse {
 const MAX_POINTS: usize = 1024;
 
 /// Response format for the info endpoint
-/// Rename fields to match the earlier go implementation.
+/// Rename fields to match the earlier golang implementation.
 #[derive(Serialize, Debug)]
 struct InfoResponse {
+    /// ServerPublicKey used to verify zero-knowledge proof
     #[serde(rename = "publicKey")]
     public_key: String,
+    /// Currently active randomness epoch
     #[serde(rename = "currentEpoch")]
     current_epoch: u8,
+    /// Timestamp of the next epoch rotation
+    /// This should be a string in RFC 3339 format,
+    /// e.g. 2023-03-14T16:33:05Z.
     #[serde(rename = "nextEpochTime")]
     next_epoch_time: Option<String>,
+    /// Maximum number of points accepted in a single request
     #[serde(rename = "maxPoints")]
     max_points: usize,
 }
@@ -106,7 +112,7 @@ enum Error {
 /// thiserror doesn't generate a `From` impl without
 /// an inner value to wrap. Write one explicitly for
 /// `std::sync::PoisonError<T>` to avoid making the
-/// whole `Error` struct generic. This allows use to
+/// whole `Error` struct generic. This allows us to
 /// use `?` with `RwLock` methods instead of an
 /// explicit `.map_err()`.
 impl<T> From<std::sync::PoisonError<T>> for Error {
@@ -116,6 +122,7 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
 }
 
 impl axum::response::IntoResponse for Error {
+    /// Construct an http response from our error type
     fn into_response(self) -> axum::response::Response {
         let body = Json(ErrorResponse {
             message: self.to_string(),
@@ -138,6 +145,8 @@ async fn randomness(
     if request.points.len() > MAX_POINTS {
         return Err(Error::TooManyPoints);
     }
+    // Don't support returning proofs until we have a more
+    // space-efficient batch proof implemented in ppoprf.
     let prove = false;
     let mut points = Vec::with_capacity(request.points.len());
     for base64_point in request.points {
@@ -191,7 +200,7 @@ async fn epoch_update_loop(state: OPRFState, config: &Config) {
         {
             let now = time::OffsetDateTime::now_utc();
             let next_rotation = now + interval;
-            // Round to the nearest second
+            // Truncate to the nearest second.
             let next_rotation = next_rotation.replace_millisecond(0)
                 .expect("should be able to round to a fixed ms.");
             let timestamp = next_rotation.format(&Rfc3339)
@@ -235,15 +244,15 @@ async fn epoch_update_loop(state: OPRFState, config: &Config) {
 }
 
 /// Initialize an axum::Router for our web service
-///
 /// Having this as a separate function makes testing easier.
 fn app(oprf_state: OPRFState) -> Router {
     Router::new()
         // Friendly default route to identify the site
         .route("/", get(|| async { "STAR randomness server\n" }))
-        // Main endpoint
+        // Main endpoints
         .route("/randomness", post(randomness))
         .route("/info", get(info))
+        // Attach shared state
         .with_state(oprf_state)
         // Logging must come after active routes
         .layer(tower_http::trace::TraceLayer::new_for_http())
@@ -268,9 +277,6 @@ struct Config {
 async fn main() {
     // Start logging
     // The default subscriber respects filter directives like `RUST_LOG=info`
-    //let filter = tracing_subscriber::EnvFilter::from_default_env();
-    //let logger = tracing_subscriber::FmtSubscriber::new();
-    //tracing::subscriber::set_global_default(logger).unwrap();
     tracing_subscriber::fmt::init();
     info!("STARing up!");
 
@@ -286,7 +292,7 @@ async fn main() {
     let oprf_state = Arc::new(RwLock::new(server));
 
     // Spawn a background process to advance the epoch
-    info!("Spawning background task...");
+    info!("Spawning background epoch rotation task...");
     let background_state = oprf_state.clone();
     tokio::spawn(async move {
         epoch_update_loop(background_state, &config).await
@@ -318,7 +324,7 @@ mod tests {
 
     const EPOCH: u8 = 12;
 
-    /// Create a app instance for testing
+    /// Create an app instance for testing
     fn test_app() -> crate::Router {
         // arbitrary config
         let config = crate::Config {
@@ -409,7 +415,7 @@ mod tests {
         let response = app.oneshot(request).await.unwrap();
         println!("response {response:?}");
 
-        // Randomness should return a list of points an an epoch
+        // Randomness should return a list of points and an epoch.
         assert_eq!(response.status(), StatusCode::OK);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         assert!(!body.is_empty());
