@@ -26,7 +26,7 @@ COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
 # Set up the run-time environment
 COPY start.sh /usr/local/bin/
 
-EXPOSE 8443
+EXPOSE 443
 # Switch to the UID that's typically reserved for the user "nobody".
 USER 65534
 
