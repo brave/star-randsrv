@@ -432,6 +432,44 @@ mod tests {
         verify_randomness_body(body, 1);
     }
 
+    #[tokio::test]
+    async fn epoch() {
+        let points = make_points(3);
+
+        // Verify setting the epoch is accepted.
+        let payload = json!({
+            "points": points,
+            "epoch": EPOCH
+        })
+        .to_string();
+        let request = test_request("/randomness", Some(payload));
+        let response = test_app().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        verify_randomness_body(body, points.len());
+
+        // Verify earlier epochs are rejected.
+        assert!(EPOCH > 0);
+        let payload = json!({
+            "points": points,
+            "epoch": 0
+        })
+        .to_string();
+        let request = test_request("/randomness", Some(payload));
+        let response = test_app().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+        // Verify later epochs are rejected.
+        let payload = json!({
+            "points": points,
+            "epoch": EPOCH + 1
+        })
+        .to_string();
+        let request = test_request("/randomness", Some(payload));
+        let response = test_app().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    }
+
     /// Check a randomness response body for validity
     fn verify_randomness_body(
         body: axum::body::Bytes,
