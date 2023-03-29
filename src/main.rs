@@ -377,7 +377,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
         let message = std::str::from_utf8(body.as_ref()).unwrap();
-        assert!(message.len() > 0);
+        assert!(!message.is_empty());
     }
 
     #[tokio::test]
