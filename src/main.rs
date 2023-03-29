@@ -413,6 +413,7 @@ mod tests {
     async fn randomness() {
         let app = test_app();
 
+        // Create a single-point randomness request.
         let point = RistrettoPoint::random(&mut rand_core::OsRng);
         let payload = json!({ "points": [
             crate::BASE64.encode(point.compress().as_bytes())
@@ -420,25 +421,89 @@ mod tests {
         .to_string();
         println!("request body {payload:?}");
 
+        // Submit to the hander.
         let request = test_request("/randomness", Some(payload));
         println!("request {request:?}");
         let response = app.oneshot(request).await.unwrap();
         println!("response {response:?}");
-
-        // Randomness should return a list of points and an epoch.
+        // Verify we receive a successful, well-formed response.
         assert_eq!(response.status(), StatusCode::OK);
         let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        verify_randomness_body(body, 1);
+    }
+
+    /// Check a randomness response body for validity
+    fn verify_randomness_body(
+        body: axum::body::Bytes,
+        expected_points: usize,
+    ) {
+        // Randomness should return a list of points and an epoch.
         assert!(!body.is_empty());
         let json: Value = serde_json::from_slice(body.as_ref())
-            .expect("Could not parse response body as json");
+            .expect("Response body should parse as json");
+        // Top-level value should be an object.
         assert!(json.is_object());
-        println!("response body {json:?}");
+        // Epoch should match test_app.
         let epoch = json["epoch"].as_u64().unwrap();
         assert_eq!(epoch, EPOCH as u64);
+        // Points array should have the expected number of elements.
         let points = json["points"].as_array().unwrap();
-        assert_eq!(points.len(), 1);
-        let b64point = points[0].as_str().unwrap();
-        let point = crate::BASE64.decode(b64point).unwrap();
-        let _ = CompressedRistretto::from_slice(&point);
+        assert_eq!(points.len(), expected_points);
+        // Individual elements should be parseable base64-encoded
+        // compressed Ristretto elliptic curve points.
+        for value in points {
+            let b64point = value.as_str().unwrap();
+            let rawpoint = crate::BASE64.decode(b64point).unwrap();
+            let _ = CompressedRistretto::from_slice(&rawpoint);
+        }
+    }
+
+    /// Generate a number of random base64-encoded points.
+    fn make_points(count: usize) -> Vec<String> {
+        let mut points = Vec::with_capacity(count);
+        for _ in 0..count {
+            let point = RistrettoPoint::random(&mut rand_core::OsRng);
+            let b64point = crate::BASE64.encode(point.compress().as_bytes());
+            points.push(b64point);
+        }
+        points
+    }
+
+    /// Verify randomness response to a batch of points
+    async fn verify_batch(points: &[String]) {
+        let app = test_app();
+        let payload = json!({ "points": points }).to_string();
+        let request = test_request("/randomness", Some(payload));
+        let response = app.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+        verify_randomness_body(body, points.len());
+    }
+
+    #[tokio::test]
+    async fn point_batches() {
+        // Check that we can submit multiple points.
+        let points = make_points(5);
+        verify_batch(&points).await;
+
+        // Check that we can submit a reasonable number of points.
+        let points = make_points(128);
+        assert!(points.len() < crate::MAX_POINTS);
+        verify_batch(&points).await;
+    }
+
+    #[tokio::test]
+    async fn max_points() {
+        // Check that we can submit the maximum number of points.
+        let points = make_points(crate::MAX_POINTS);
+        verify_batch(&points).await;
+
+        // Requests with more than the maximum number of points
+        // should be rejected.
+        let points = make_points(crate::MAX_POINTS + 1);
+        let payload = json!({ "points": points }).to_string();
+        let request = test_request("/randomness", Some(payload));
+        let response = test_app().oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     }
 }
