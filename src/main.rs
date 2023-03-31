@@ -276,6 +276,9 @@ struct Config {
     /// Last epoch tag to make available
     #[arg(long, default_value_t = 255)]
     last_epoch: u8,
+    /// Host and port to listen for http connections
+    #[arg(long, default_value = "127.0.0.1:8080")]
+    listen: String,
 }
 
 #[tokio::main]
@@ -288,6 +291,7 @@ async fn main() {
     // Command line switches
     let config = Config::parse();
     debug!(?config, "config parsed");
+    let addr = config.listen.parse().unwrap();
 
     // Oblivious function state
     info!("initializing OPRF state...");
@@ -308,7 +312,6 @@ async fn main() {
     let app = app(oprf_state);
 
     // Start the server
-    let addr = "127.0.0.1:8080".parse().unwrap();
     info!("Listening on {}", &addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
