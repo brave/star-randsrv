@@ -155,10 +155,7 @@ async fn epoch() {
 }
 
 /// Check a randomness response body for validity
-fn verify_randomness_body(
-    body: axum::body::Bytes,
-    expected_points: usize,
-) {
+fn verify_randomness_body(body: axum::body::Bytes, expected_points: usize) {
     // Randomness should return a list of points and an epoch.
     assert!(!body.is_empty());
     let json: Value = serde_json::from_slice(body.as_ref())
