@@ -3,7 +3,8 @@
 use axum::body::Body;
 use axum::http::Request;
 use axum::http::StatusCode;
-use base64::prelude::Engine as _;
+use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
+use crate::handler::OPRFServer;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use serde_json::{json, Value};
 use std::sync::{Arc, RwLock};
@@ -22,7 +23,7 @@ fn test_app() -> crate::Router {
         listen: "127.0.0.1:8081".to_string(),
     };
     // server state
-    let mut server = crate::OPRFServer::new(&config)
+    let mut server = OPRFServer::new(&config)
         .expect("Could not initialize PPOPRF state");
     server.next_epoch_time = Some(NEXT_EPOCH_TIME.to_owned());
     let oprf_state = Arc::new(RwLock::new(server));
@@ -88,7 +89,7 @@ async fn info() {
     assert_eq!(max_points, crate::MAX_POINTS as u64);
     assert!(json["publicKey"].is_string());
     let b64key = json["publicKey"].as_str().unwrap();
-    let binkey = crate::BASE64.decode(b64key).unwrap();
+    let binkey = BASE64.decode(b64key).unwrap();
     let _ = ppoprf::ppoprf::ServerPublicKey::load_from_bincode(&binkey)
         .expect("Could not parse server public key");
 }
@@ -100,7 +101,7 @@ async fn randomness() {
     // Create a single-point randomness request.
     let point = RistrettoPoint::random(&mut rand_core::OsRng);
     let payload = json!({ "points": [
-        crate::BASE64.encode(point.compress().as_bytes())
+        BASE64.encode(point.compress().as_bytes())
     ]})
     .to_string();
     println!("request body {payload:?}");
@@ -172,7 +173,7 @@ fn verify_randomness_body(body: axum::body::Bytes, expected_points: usize) {
     // compressed Ristretto elliptic curve points.
     for value in points {
         let b64point = value.as_str().unwrap();
-        let rawpoint = crate::BASE64.decode(b64point).unwrap();
+        let rawpoint = BASE64.decode(b64point).unwrap();
         let _ = CompressedRistretto::from_slice(&rawpoint);
     }
 }
@@ -182,7 +183,7 @@ fn make_points(count: usize) -> Vec<String> {
     let mut points = Vec::with_capacity(count);
     for _ in 0..count {
         let point = RistrettoPoint::random(&mut rand_core::OsRng);
-        let b64point = crate::BASE64.encode(point.compress().as_bytes());
+        let b64point = BASE64.encode(point.compress().as_bytes());
         points.push(b64point);
     }
     points

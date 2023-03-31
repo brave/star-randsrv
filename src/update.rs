@@ -5,8 +5,8 @@ use time::format_description::well_known::Rfc3339;
 use tracing::{info, instrument};
 
 use crate::Config;
-use crate::OPRFServer;
-use crate::OPRFState;
+use crate::handler::OPRFServer;
+use crate::handler::OPRFState;
 
 /// Advance to the next epoch on a timer
 #[instrument(skip_all)]
