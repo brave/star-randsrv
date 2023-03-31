@@ -6,7 +6,7 @@ use axum::{routing::get, routing::post, Router};
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use time::format_description::well_known::Rfc3339;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 use ppoprf::ppoprf;
 use std::sync::{Arc, RwLock};
@@ -188,6 +188,7 @@ async fn info(
 }
 
 /// Advance to the next epoch on a timer
+#[instrument(skip_all)]
 async fn epoch_update_loop(state: OPRFState, config: &Config) {
     let interval =
         std::time::Duration::from_secs(config.epoch_seconds.into());
