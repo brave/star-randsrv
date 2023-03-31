@@ -118,6 +118,7 @@ async fn randomness() {
 }
 
 #[tokio::test]
+#[allow(clippy::assertions_on_constants)]
 async fn epoch() {
     let points = make_points(3);
 
