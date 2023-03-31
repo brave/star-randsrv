@@ -286,7 +286,7 @@ async fn main() {
 
     // Command line switches
     let config = Config::parse();
-    debug!("{config:?}");
+    debug!(?config, "config parsed");
 
     // Oblivious function state
     info!("initializing OPRF state...");
