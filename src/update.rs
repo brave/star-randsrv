@@ -4,9 +4,9 @@
 use time::format_description::well_known::Rfc3339;
 use tracing::{info, instrument};
 
-use crate::Config;
 use crate::handler::OPRFServer;
 use crate::handler::OPRFState;
+use crate::Config;
 
 /// Advance to the next epoch on a timer
 #[instrument(skip_all)]

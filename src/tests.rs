@@ -1,10 +1,10 @@
 //! STAR Randomness web service tests
 
+use crate::handler::OPRFServer;
 use axum::body::Body;
 use axum::http::Request;
 use axum::http::StatusCode;
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
-use crate::handler::OPRFServer;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use serde_json::{json, Value};
 use std::sync::{Arc, RwLock};
@@ -23,8 +23,8 @@ fn test_app() -> crate::Router {
         listen: "127.0.0.1:8081".to_string(),
     };
     // server state
-    let mut server = OPRFServer::new(&config)
-        .expect("Could not initialize PPOPRF state");
+    let mut server =
+        OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
     server.next_epoch_time = Some(NEXT_EPOCH_TIME.to_owned());
     let oprf_state = Arc::new(RwLock::new(server));
 
