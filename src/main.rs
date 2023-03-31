@@ -340,6 +340,7 @@ mod tests {
             epoch_seconds: 1,
             first_epoch: EPOCH,
             last_epoch: EPOCH * 2,
+            listen: "127.0.0.1:8081".to_string(),
         };
         // server state
         let mut server = crate::OPRFServer::new(&config)
