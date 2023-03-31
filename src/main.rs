@@ -5,19 +5,20 @@ use axum::http::StatusCode;
 use axum::{routing::get, routing::post, Router};
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
-use time::format_description::well_known::Rfc3339;
-use tracing::{debug, info, instrument};
+use tracing::{debug, info};
 
 use ppoprf::ppoprf;
 use std::sync::{Arc, RwLock};
 
 use clap::Parser;
 
+mod update;
+
 #[cfg(test)]
 mod tests;
 
 /// Internal state of the OPRF service
-struct OPRFServer {
+pub struct OPRFServer {
     /// oprf implementation
     server: ppoprf::Server,
     /// currently-valid randomness epoch
@@ -190,67 +191,6 @@ async fn info(
     Ok(Json(response))
 }
 
-/// Advance to the next epoch on a timer
-#[instrument(skip_all)]
-async fn epoch_update_loop(state: OPRFState, config: &Config) {
-    let interval =
-        std::time::Duration::from_secs(config.epoch_seconds.into());
-    info!("rotating epoch every {} seconds", interval.as_secs());
-
-    let epochs = config.first_epoch..=config.last_epoch;
-    loop {
-        // Pre-calculate the next_epoch_time for the InfoResponse hander.
-        let now = time::OffsetDateTime::now_utc();
-        let next_rotation = now + interval;
-        // Truncate to the nearest second.
-        let next_rotation = next_rotation
-            .replace_millisecond(0)
-            .expect("should be able to round to a fixed ms.");
-        let timestamp = next_rotation
-            .format(&Rfc3339)
-            .expect("well-known timestamp format should always succeed");
-        {
-            // Acquire a temporary write lock which should be dropped
-            // before sleeping. The locking should not fail, but if it
-            // does we can't set the field back to None, so panic rather
-            // than report stale information.
-            let mut s = state
-                .write()
-                .expect("should be able to update next_epoch_time");
-            s.next_epoch_time = Some(timestamp);
-        }
-
-        // Wait until the current epoch ends.
-        tokio::time::sleep(interval).await;
-
-        // Acquire exclusive access to the oprf state.
-        // Panics if this fails, since processing requests with an
-        // expired epoch weakens user privacy.
-        let mut s = state.write().expect("Failed to lock OPRFState");
-
-        // Puncture the current epoch so it can no longer be used.
-        let old_epoch = s.epoch;
-        s.server
-            .puncture(old_epoch)
-            .expect("Failed to puncture current epoch");
-
-        // Advance to the next epoch.
-        let new_epoch = old_epoch + 1;
-        if epochs.contains(&new_epoch) {
-            // Server is already initialized for this one.
-            s.epoch = new_epoch;
-        } else {
-            info!("Epochs exhausted! Rotating OPRF key");
-            // Panics if this fails. Puncture should mean we can't
-            // violate privacy through further evaluations, but we
-            // still want to drop the inner state with its private key.
-            *s = OPRFServer::new(config)
-                .expect("Could not initialize new PPOPRF state");
-        }
-        info!("epoch now {}", s.epoch);
-    }
-}
-
 /// Initialize an axum::Router for our web service
 /// Having this as a separate function makes testing easier.
 fn app(oprf_state: OPRFState) -> Router {
@@ -269,7 +209,7 @@ fn app(oprf_state: OPRFState) -> Router {
 /// Command line switches
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
-struct Config {
+pub struct Config {
     /// Duration of each randomness epoch
     #[arg(long, default_value_t = 5)]
     epoch_seconds: u32,
@@ -307,7 +247,7 @@ async fn main() {
     info!("Spawning background epoch rotation task...");
     let background_state = oprf_state.clone();
     tokio::spawn(async move {
-        epoch_update_loop(background_state, &config).await
+        update::epoch_loop(background_state, &config).await
     });
 
     // Set up routes and middleware
