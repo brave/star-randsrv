@@ -196,20 +196,20 @@ async fn epoch_update_loop(state: OPRFState, config: &Config) {
     let epochs = config.first_epoch..=config.last_epoch;
     loop {
         // Pre-calculate the next_epoch_time for the InfoResponse hander.
-        // This acquires a temporary write lock which should be dropped
-        // before sleeping.
+        let now = time::OffsetDateTime::now_utc();
+        let next_rotation = now + interval;
+        // Truncate to the nearest second.
+        let next_rotation = next_rotation
+            .replace_millisecond(0)
+            .expect("should be able to round to a fixed ms.");
+        let timestamp = next_rotation
+            .format(&Rfc3339)
+            .expect("well-known timestamp format should always succeed");
         {
-            let now = time::OffsetDateTime::now_utc();
-            let next_rotation = now + interval;
-            // Truncate to the nearest second.
-            let next_rotation = next_rotation
-                .replace_millisecond(0)
-                .expect("should be able to round to a fixed ms.");
-            let timestamp = next_rotation
-                .format(&Rfc3339)
-                .expect("well_known timestamp format should always succeed");
-            // Locking should not fail, but if it does we can't set the field
-            // back to None, so panic rather than report stale information.
+            // Acquire a temporary write lock which should be dropped
+            // before sleeping. The locking should not fail, but if it
+            // does we can't set the field back to None, so panic rather
+            // than report stale information.
             let mut s = state
                 .write()
                 .expect("should be able to update next_epoch_time");
