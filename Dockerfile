@@ -30,4 +30,4 @@ EXPOSE 443
 # Switch to the UID that's typically reserved for the user "nobody".
 USER 65534
 
-CMD ["start.sh"]
+CMD ["/usr/local/bin/start.sh"]
