@@ -1,9 +1,12 @@
-binary = star-randsrv
-image = $(binary):latest
+prog = star-randsrv
+version = $(shell git describe --tag --dirty)
+image_tag = $(prog):$(version)
+image_tar = $(prog)-$(version)-kaniko.tar
+image_eif = $(image_tar:%.tar=%.eif)
 
-.PHONY: all test lint eif $(binary) clean
+.PHONY: all test lint eif clean target/release/$(prog)
 
-all: test lint $(binary)
+all: test lint target/release/$(prog)
 
 test:
 	cargo test
@@ -12,37 +15,32 @@ lint:
 	cargo clippy
 	cargo audit
 
-image:
-	$(eval IMAGE=$(shell ko publish --local . 2>/dev/null))
-	@echo "Built image URI: $(IMAGE)."
-	$(eval DIGEST=$(shell echo $(IMAGE) | cut -d ':' -f 2))
-	@echo "SHA-256 digest: $(DIGEST)"
-
-eif: image
-	nitro-cli build-enclave --docker-uri $(IMAGE) --output-file ko.eif
-	$(eval ENCLAVE_ID=$(shell nitro-cli describe-enclaves | jq -r '.[0].EnclaveID'))
-	@if [ "$(ENCLAVE_ID)" != "null" ]; then nitro-cli terminate-enclave --enclave-id $(ENCLAVE_ID); fi
-	@echo "Starting enclave."
-	nitro-cli run-enclave --cpu-count 2 --memory 2500 --enclave-cid 4 --eif-path ko.eif --debug-mode
-	@echo "Showing enclave logs."
-	nitro-cli console --enclave-id $$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveID')
-
-docker:
-	@docker run \
-		-v $(PWD):/workspace \
-		--network=host \
-		gcr.io/kaniko-project/executor:v1.7.0 \
-		--reproducible \
-		--dockerfile /workspace/Dockerfile \
-		--no-push \
-		--tarPath /workspace/$(binary)-repro.tar \
-		--destination $(image) \
-		--context dir:///workspace/ && cat $(binary)-repro.tar | docker load >/dev/null
-	@rm -f $(binary)-repro.tar
-	@echo $(image)
-
-$(binary):
+target/release/$(prog): Cargo.toml src/*.rs
 	cargo build --release
 
 clean:
-	@cargo clean
+	cargo clean
+	$(RM) $(image_tar)
+	$(RM) $(image_eif)
+
+eif: $(image_eif)
+
+$(image_eif): $(image_tar)
+	docker load -i $<
+	nitro-cli build-enclave --docker-uri $(image_tag) --output-file $@
+
+$(image_tar): Dockerfile $(wildcard Cargo.* src/*.rs)
+	docker run -v $$PWD:/workspace gcr.io/kaniko-project/executor:v1.9.2 \
+		--context dir:///workspace/ \
+		--reproducible \
+		--no-push \
+		--tarPath $(image_tar) \
+		--destination $(image_tag)
+
+run: $(image_eif)
+	$(eval ENCLAVE_ID=$(shell nitro-cli describe-enclaves | jq -r '.[0].EnclaveID'))
+	@if [ "$(ENCLAVE_ID)" != "null" ]; then nitro-cli terminate-enclave --enclave-id $(ENCLAVE_ID); fi
+	@echo "Starting enclave."
+	nitro-cli run-enclave --cpu-count 2 --memory 512 --eif-path $(image_eif) --debug-mode
+	@echo "Showing enclave logs."
+	nitro-cli console --enclave-id $$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveID')
