@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - main
+      - rust
     tags:
       - v*
 
