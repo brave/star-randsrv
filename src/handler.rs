@@ -7,38 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 use ppoprf::ppoprf;
-use std::sync::{Arc, RwLock};
-
-use crate::Config;
-
-/// Internal state of the OPRF service
-pub struct OPRFServer {
-    /// oprf implementation
-    pub server: ppoprf::Server,
-    /// currently-valid randomness epoch
-    pub epoch: u8,
-    /// RFC 3339 timestamp of the next epoch rotation
-    pub next_epoch_time: Option<String>,
-}
-
-/// Shareable wrapper around the server state
-pub type OPRFState = Arc<RwLock<OPRFServer>>;
-
-impl OPRFServer {
-    /// Initialize a new OPRFServer state with the given configuration
-    pub fn new(config: &Config) -> Result<Self, ppoprf::PPRFError> {
-        // ppoprf wants a vector, so generate one from our range.
-        let epochs: Vec<u8> =
-            (config.first_epoch..=config.last_epoch).collect();
-        let epoch = epochs[0];
-        let server = ppoprf::Server::new(epochs)?;
-        Ok(OPRFServer {
-            server,
-            epoch,
-            next_epoch_time: None,
-        })
-    }
-}
+use crate::OPRFState;
 
 /// Request format for the randomness endpoint
 #[derive(Deserialize, Debug)]

@@ -6,7 +6,9 @@ use std::sync::{Arc, RwLock};
 use tracing::{debug, info};
 
 mod handler;
-mod update;
+mod state;
+
+pub use state::OPRFState;
 
 #[cfg(test)]
 mod tests;
@@ -34,7 +36,7 @@ pub struct Config {
 
 /// Initialize an axum::Router for our web service
 /// Having this as a separate function makes testing easier.
-fn app(oprf_state: handler::OPRFState) -> Router {
+fn app(oprf_state: OPRFState) -> Router {
     Router::new()
         // Friendly default route to identify the site
         .route("/", get(|| async { "STAR randomness server\n" }))
@@ -61,7 +63,7 @@ async fn main() {
 
     // Oblivious function state
     info!("initializing OPRF state...");
-    let server = handler::OPRFServer::new(&config)
+    let server = state::OPRFServer::new(&config)
         .expect("Could not initialize PPOPRF state");
     info!("epoch now {}", server.epoch);
     let oprf_state = Arc::new(RwLock::new(server));
@@ -70,7 +72,7 @@ async fn main() {
     info!("Spawning background epoch rotation task...");
     let background_state = oprf_state.clone();
     tokio::spawn(async move {
-        update::epoch_loop(background_state, &config).await
+        state::epoch_loop(background_state, &config).await
     });
 
     // Set up routes and middleware

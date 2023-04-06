@@ -1,6 +1,6 @@
 //! STAR Randomness web service tests
 
-use crate::handler::OPRFServer;
+use crate::state::OPRFServer;
 use axum::body::Body;
 use axum::http::Request;
 use axum::http::StatusCode;
