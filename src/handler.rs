@@ -115,7 +115,6 @@ pub async fn randomness(
     }
     // Don't support returning proofs until we have a more
     // space-efficient batch proof implemented in ppoprf.
-    let prove = false;
     let mut points = Vec::with_capacity(request.points.len());
     for base64_point in request.points {
         let input = BASE64.decode(base64_point)?;
@@ -125,7 +124,7 @@ pub async fn randomness(
             return Err(Error::BadPoint);
         }
         let point = ppoprf::Point::from(input.as_slice());
-        let evaluation = state.server.eval(&point, epoch, prove)?;
+        let evaluation = state.server.eval(&point, epoch, false)?;
         points.push(BASE64.encode(evaluation.output.as_bytes()));
     }
     let response = RandomnessResponse { points, epoch };
