@@ -17,14 +17,19 @@ COPY . .
 # that we use specific dependencies.
 RUN cargo build --locked --release
 
+FROM public.ecr.aws/docker/library/alpine:3.17.3 as file-builder
+
+# Set up the run-time environment
+COPY start.sh /
+RUN chown root:root /start.sh
+RUN chmod 755 /start.sh
+
 # Copy from the builder imagse to keep the final image reproducible and small,
 # and to improve reproducibilty of the build.
 FROM public.ecr.aws/docker/library/alpine:3.17.3
 COPY --from=go-builder /src/nitriding/cmd/nitriding /usr/local/bin/
 COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
-
-# Set up the run-time environment
-COPY start.sh /usr/local/bin/
+COPY --from=file-builder /start.sh /usr/local/bin/
 
 EXPOSE 443
 # Switch to the UID that's typically reserved for the user "nobody".

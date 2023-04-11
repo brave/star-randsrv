@@ -45,7 +45,8 @@ $(image_tar): Dockerfile $(RUST_DEPS) $(NITRIDING_DEPS) nitriding/cmd/Makefile
 		--reproducible \
 		--no-push \
 		--tarPath $(image_tar) \
-		--destination $(image_tag)
+		--destination $(image_tag) \
+		--custom-platform linux/amd64
 
 run: $(image_eif)
 	$(eval ENCLAVE_ID=$(shell nitro-cli describe-enclaves | jq -r '.[0].EnclaveID'))
