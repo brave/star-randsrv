@@ -92,10 +92,16 @@ impl<T> From<std::sync::PoisonError<T>> for Error {
 impl axum::response::IntoResponse for Error {
     /// Construct an http response from our error type
     fn into_response(self) -> axum::response::Response {
+        let code = match self {
+            // This indicates internal failure.
+            Error::LockFailure => StatusCode::INTERNAL_SERVER_ERROR,
+            // Other cases are the client's fault.
+            _ => StatusCode::BAD_REQUEST,
+        };
         let body = Json(ErrorResponse {
             message: self.to_string(),
         });
-        (StatusCode::BAD_REQUEST, body).into_response()
+        (code, body).into_response()
     }
 }
 
