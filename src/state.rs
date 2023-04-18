@@ -87,7 +87,7 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
         // Advance to the next epoch, checking for overflow
         // and out-of-range.
         let new_epoch = old_epoch.checked_add(1);
-        if new_epoch.filter(|e| epochs.contains(&e)).is_some() {
+        if new_epoch.filter(|e| epochs.contains(e)).is_some() {
             // Server is already initialized for this one.
             s.epoch = new_epoch.unwrap();
         } else {
