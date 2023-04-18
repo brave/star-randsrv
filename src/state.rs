@@ -5,8 +5,8 @@ use std::sync::{Arc, RwLock};
 use time::format_description::well_known::Rfc3339;
 use tracing::{info, instrument};
 
-use ppoprf::ppoprf;
 use crate::Config;
+use ppoprf::ppoprf;
 
 /// Internal state of the OPRF service
 pub struct OPRFServer {

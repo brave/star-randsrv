@@ -6,8 +6,8 @@ use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
 use tracing::debug;
 
-use ppoprf::ppoprf;
 use crate::OPRFState;
+use ppoprf::ppoprf;
 
 /// Request format for the randomness endpoint
 #[derive(Deserialize, Debug)]
