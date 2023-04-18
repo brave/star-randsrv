@@ -84,11 +84,12 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
             .puncture(old_epoch)
             .expect("Failed to puncture current epoch");
 
-        // Advance to the next epoch.
-        let new_epoch = old_epoch + 1;
-        if epochs.contains(&new_epoch) {
+        // Advance to the next epoch, checking for overflow
+        // and out-of-range.
+        let new_epoch = old_epoch.checked_add(1);
+        if new_epoch.filter(|e| epochs.contains(&e)).is_some() {
             // Server is already initialized for this one.
-            s.epoch = new_epoch;
+            s.epoch = new_epoch.unwrap();
         } else {
             info!("Epochs exhausted! Rotating OPRF key");
             // Panics if this fails. Puncture should mean we can't
