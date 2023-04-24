@@ -6,7 +6,7 @@ description = "STAR randomness webservice"
 edition = "2021"
 
 [dependencies]
-axum = "0.6.1"
+axum = "0.6.16"
 base64 = "0.21.0"
 clap = { version = "4.1.8", features = ["derive"] }
 curve25519-dalek = "3.2.0"
