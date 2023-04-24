@@ -1,0 +1,3 @@
+[submodule "nitriding"]
+	path = nitriding
+	url = https://github.com/brave/nitriding.git

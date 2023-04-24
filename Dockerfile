@@ -1,5 +1,15 @@
-# Start by building the sta-rs library in a builder container.
-FROM rust:1.60 as rust-builder
+# Start by building the nitriding proxy daemon.
+FROM public.ecr.aws/docker/library/golang:1.20 as go-builder
+
+WORKDIR /src/
+COPY . .
+RUN make -C nitriding/cmd nitriding
+
+# Build the web server application itself.
+# Use the -alpine variant so it will run in a alpine-based container.
+FROM public.ecr.aws/docker/library/rust:1.68.2-alpine as rust-builder
+# Base image may not support C linkage.
+RUN apk add musl-dev
 
 WORKDIR /src/
 COPY . .
@@ -7,25 +17,22 @@ COPY . .
 # that we use specific dependencies.
 RUN cargo build --locked --release
 
-# Take the compiled sta-rs library (specifically, the object and header file),
-# and use it to build star-randsrv; again, in a builder container.
-FROM golang:1.19 as go-builder
+FROM public.ecr.aws/docker/library/alpine:3.17.3 as file-builder
 
-WORKDIR /src/
-RUN mkdir -p ./target/release ./include
-COPY --from=rust-builder /src/include/ppoprf.h ./include
-COPY --from=rust-builder /src/target/release/libstar_ppoprf_ffi.a ./target/release
+# Set up the run-time environment
+COPY start.sh /
+RUN chown root:root /start.sh
+RUN chmod 755 /start.sh
 
-COPY *.go go.mod go.sum ./
-RUN go mod download
-RUN go build -trimpath -o star-randsrv ./
+# Copy from the builder imagse to keep the final image reproducible and small,
+# and to improve reproducibilty of the build.
+FROM public.ecr.aws/docker/library/alpine:3.17.3
+COPY --from=go-builder /src/nitriding/cmd/nitriding /usr/local/bin/
+COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
+COPY --from=file-builder /start.sh /usr/local/bin/
 
-# Copy from the builder to keep the final image reproducible and small.  If we
-# don't do this, we end up with non-deterministic build artifacts.
-FROM scratch
-COPY --from=go-builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=go-builder /src/star-randsrv /
-EXPOSE 8443
+EXPOSE 443
 # Switch to the UID that's typically reserved for the user "nobody".
 USER 65534
-CMD ["/star-randsrv"]
+
+CMD ["/usr/local/bin/start.sh"]
