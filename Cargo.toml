@@ -3,6 +3,7 @@ name = "star-randsrv"
 version = "0.2.0"
 authors = ["Ralph Giles <rgiles@brave.com>"]
 description = "STAR randomness webservice"
+license = "MPL-2.0"
 edition = "2021"
 
 [dependencies]
