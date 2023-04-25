@@ -15,7 +15,7 @@ ppoprf = { git = "https://github.com/brave/sta-rs", rev = "1937393e9d76c5333af47
 serde = "1.0.163"
 serde_json = "1.0.96"
 thiserror = "1.0.40"
-time = { version = "0.3.21", features = ["formatting"] }
+time = { version = "0.3.21", features = ["formatting", "parsing"] }
 tokio = { version = "1.28.2", features = ["full"] }
 tower-http = { version = "0.4.0", features = ["trace"] }
 tracing = "0.1.37"

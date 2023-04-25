@@ -3,7 +3,8 @@
 use axum::{routing::get, routing::post, Router};
 use clap::Parser;
 use std::sync::{Arc, RwLock};
-use tracing::{debug, info};
+use time::format_description::well_known::Rfc3339;
+use tracing::{debug, info, warn};
 
 mod handler;
 mod state;
@@ -20,6 +21,9 @@ const MAX_POINTS: usize = 1024;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Config {
+    /// Host and port to listen for http connections
+    #[arg(long, default_value = "127.0.0.1:8080")]
+    listen: String,
     /// Duration of each randomness epoch
     #[arg(long, default_value_t = 5)]
     epoch_seconds: u32,
@@ -29,9 +33,9 @@ pub struct Config {
     /// Last epoch tag to make available
     #[arg(long, default_value_t = 255)]
     last_epoch: u8,
-    /// Host and port to listen for http connections
-    #[arg(long, default_value = "127.0.0.1:8080")]
-    listen: String,
+    /// Optional absolute time at which to anchor the first epoch
+    #[arg(long, value_name = "RFC 3339 timestamp")]
+    epoch_basetime: Option<String>,
 }
 
 /// Initialize an axum::Router for our web service
@@ -60,6 +64,17 @@ async fn main() {
     let config = Config::parse();
     debug!(?config, "config parsed");
     let addr = config.listen.parse().unwrap();
+    let mut basetime = None;
+    if let Some(stamp) = &config.epoch_basetime {
+        basetime = match time::OffsetDateTime::parse(stamp, &Rfc3339) {
+            Ok(timestamp) => Some(timestamp),
+            Err(e) => {
+                warn!("Couldn't parse epoch-basetime argument: {e}");
+                None
+            }
+        }
+    }
+    debug!(?basetime, "parsed");
 
     // Oblivious function state
     info!("initializing OPRF state...");

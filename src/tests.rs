@@ -17,10 +17,11 @@ const NEXT_EPOCH_TIME: &str = "2023-03-22T21:46:35Z";
 fn test_app() -> crate::Router {
     // arbitrary config
     let config = crate::Config {
+        listen: "127.0.0.1:8081".to_string(),
         epoch_seconds: 1,
         first_epoch: EPOCH,
         last_epoch: EPOCH * 2,
-        listen: "127.0.0.1:8081".to_string(),
+        epoch_basetime: None,
     };
     // server state
     let mut server =
