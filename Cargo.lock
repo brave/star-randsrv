@@ -923,7 +923,7 @@ dependencies = [
  "curve25519-dalek",
  "hyper",
  "ppoprf",
- "rand_core 0.5.1",
+ "rand_core 0.6.4",
  "serde",
  "serde_json",
  "thiserror",
