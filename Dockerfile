@@ -7,7 +7,7 @@ RUN make -C nitriding/cmd nitriding
 
 # Build the web server application itself.
 # Use the -alpine variant so it will run in a alpine-based container.
-FROM public.ecr.aws/docker/library/rust:1.68.2-alpine as rust-builder
+FROM public.ecr.aws/docker/library/rust:1.69.0-alpine as rust-builder
 # Base image may not support C linkage.
 RUN apk add musl-dev
 
