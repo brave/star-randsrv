@@ -1,5 +1,5 @@
 # Start by building the nitriding proxy daemon.
-FROM public.ecr.aws/docker/library/golang:1.20 as go-builder
+FROM public.ecr.aws/docker/library/golang:1.20.3 as go-builder
 
 WORKDIR /src/
 COPY . .
