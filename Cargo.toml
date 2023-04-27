@@ -28,5 +28,6 @@ tower = "0.4.13"
 
 [profile.release]
 lto = "thin"
+panic = "abort"
 strip = true
 codegen-units = 1
