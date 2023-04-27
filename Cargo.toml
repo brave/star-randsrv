@@ -3,6 +3,7 @@ name = "star-randsrv"
 version = "0.2.0"
 authors = ["Ralph Giles <rgiles@brave.com>"]
 description = "STAR randomness webservice"
+license = "MPL-2.0"
 edition = "2021"
 
 [dependencies]
@@ -24,3 +25,9 @@ tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
 hyper = "0.14.26"
 rand_core = { version = "0.5.1", features = ["getrandom"] }
 tower = "0.4.13"
+
+[profile.release]
+lto = "thin"
+panic = "abort"
+strip = true
+codegen-units = 1

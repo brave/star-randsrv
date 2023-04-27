@@ -1,12 +1,17 @@
 STAR Randomness Server
 ======================
 
-This repository implements a service that serves as a front end to the
-randomness server that's proposed in the paper [STAR: Distributed Secret Sharing
+This repository implements the randomness server that's proposed
+in the paper [STAR: Distributed Secret Sharing
 for Private Threshold Aggregation Reporting](https://arxiv.org/abs/2109.10074).
-The actual randomness server implementation (written in Rust) can be found in
-the [sta-rs](https://github.com/brave/sta-rs) repository; this repository merely
-implements a Go wrapper that can be run inside an AWS Nitro Enclave.
+The actual oblivious pseudorandom function implementation can be found
+in the [sta-rs](https://github.com/brave/sta-rs) repository.
+This repository implements webservice wrapper to make evaluation available
+over the network.
+
+It also includes a reproducible container build that can be run inside an
+AWS Nitro Enclave, providing remote attestation of the implementation and
+additional security for the private key.
 
 Installation
 ------------
@@ -17,16 +22,16 @@ To test, lint, and build the randomness server, simply run:
 make
 ```
 
-To build a reproducible Docker image of the randomness server, run:
-
-```
-make docker
-```
-
 To execute just the randomness webapp with logging, run:
 
 ```
 RUST_LOG=tower_http=trace,star_randsrv=debug cargo run
+```
+
+To build a reproducible container image of the randomness server, run:
+
+```
+make image
 ```
 
 Input
