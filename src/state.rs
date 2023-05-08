@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, RwLock};
 use time::format_description::well_known::Rfc3339;
-use tracing::{info, instrument};
+use tracing::{info, instrument, warn};
 
 use crate::Config;
 use ppoprf::ppoprf;
@@ -38,25 +38,65 @@ impl OPRFServer {
 }
 
 /// Advance to the next epoch on a timer
-/// This can be invoked as a background task to handle
-/// epoch advance and key rotation according to the
-/// given Config.
+/// This can be invoked as a background task to handle epoch
+/// advance and key rotation according to the given Config.
 #[instrument(skip_all)]
 pub async fn epoch_loop(state: OPRFState, config: &Config) {
     let interval =
         std::time::Duration::from_secs(config.epoch_seconds.into());
     info!("rotating epoch every {} seconds", interval.as_secs());
 
+    let starttime = time::OffsetDateTime::now_utc();
+    // Parse the epoch basetime if given.
+    let basetime: Option<time::OffsetDateTime> = config.into();
+    // If no epoch basetime was specified, use the startup time.
+    let basetime = basetime.unwrap_or(starttime);
+    assert!(
+        starttime >= basetime,
+        "epoch-basetime should be in the past"
+    );
+
+    // Calculate where we are in the epoch schedule relative to the
+    // basetime. We may need to start in the middle of the range.
+    let elapsed_epochs = (starttime - basetime) / interval;
+    let elapsed_count = elapsed_epochs.floor() as i64;
+    let epoch_count = config.last_epoch - config.first_epoch;
+    let offset = elapsed_count.rem_euclid(epoch_count.into());
+    let start = config.first_epoch + offset as u8;
+
+    // Advance to the current epoch if basetime indicates we started
+    // in the middle of a sequence.
+    if start != config.first_epoch {
+        info!(
+            "Puncturing obsolete epochs {}..{} to match basetime",
+            config.first_epoch, start
+        );
+        let mut s = state.write().expect("Failed to lock OPRFState");
+        for epoch in config.first_epoch..start {
+            s.server
+                .puncture(epoch)
+                .expect("Failed to puncture obsolete epoch");
+        }
+        s.epoch = start;
+        info!("epoch now {}", s.epoch);
+    }
+
+    // First rotation uses whatever time remains for the current epoch.
+    // This will be `interval` unless an epoch_basetime is specified.
+    let partial_seconds =
+        (1.0 - elapsed_epochs.fract()) * interval.as_secs_f64();
+    let partial = std::time::Duration::from_secs_f64(partial_seconds);
+    let mut next_rotation = starttime + partial;
+
     let epochs = config.first_epoch..=config.last_epoch;
+
     loop {
         // Pre-calculate the next_epoch_time for the InfoResponse hander.
-        let now = time::OffsetDateTime::now_utc();
-        let next_rotation = now + interval;
         // Truncate to the nearest second.
-        let next_rotation = next_rotation
+        let timestamp = next_rotation;
+        let timestamp = timestamp
             .replace_millisecond(0)
-            .expect("should be able to round to a fixed ms.");
-        let timestamp = next_rotation
+            .expect("should be able to round to a fixed ms")
             .format(&Rfc3339)
             .expect("well-known timestamp format should always succeed");
         {
@@ -71,7 +111,12 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
         }
 
         // Wait until the current epoch ends.
-        tokio::time::sleep(interval).await;
+        let sleep_duration = next_rotation - time::OffsetDateTime::now_utc();
+        // Negative durations mean we're behind.
+        if sleep_duration.is_positive() {
+            tokio::time::sleep(sleep_duration.unsigned_abs()).await;
+        }
+        next_rotation += interval;
 
         // Acquire exclusive access to the oprf state.
         // Panics if this fails, since processing requests with an
@@ -99,5 +144,22 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
                 .expect("Could not initialize new PPOPRF state");
         }
         info!("epoch now {}", s.epoch);
+    }
+}
+
+/// Parse a timestamp out of the Config
+impl From<&Config> for Option<time::OffsetDateTime> {
+    fn from(config: &Config) -> Self {
+        let mut basetime = None;
+        if let Some(stamp) = &config.epoch_basetime {
+            basetime = match time::OffsetDateTime::parse(stamp, &Rfc3339) {
+                Ok(timestamp) => Some(timestamp),
+                Err(e) => {
+                    warn!("Couldn't parse epoch-basetime argument: {e}");
+                    None
+                }
+            }
+        }
+        basetime
     }
 }

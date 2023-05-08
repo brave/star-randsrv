@@ -3,8 +3,7 @@
 use axum::{routing::get, routing::post, Router};
 use clap::Parser;
 use std::sync::{Arc, RwLock};
-use time::format_description::well_known::Rfc3339;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 mod handler;
 mod state;
@@ -64,17 +63,6 @@ async fn main() {
     let config = Config::parse();
     debug!(?config, "config parsed");
     let addr = config.listen.parse().unwrap();
-    let mut basetime = None;
-    if let Some(stamp) = &config.epoch_basetime {
-        basetime = match time::OffsetDateTime::parse(stamp, &Rfc3339) {
-            Ok(timestamp) => Some(timestamp),
-            Err(e) => {
-                warn!("Couldn't parse epoch-basetime argument: {e}");
-                None
-            }
-        }
-    }
-    debug!(?basetime, "parsed");
 
     // Oblivious function state
     info!("initializing OPRF state...");
