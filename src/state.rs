@@ -42,59 +42,61 @@ impl OPRFServer {
 /// advance and key rotation according to the given Config.
 #[instrument(skip_all)]
 pub async fn epoch_loop(state: OPRFState, config: &Config) {
+    let epochs = config.first_epoch..=config.last_epoch;
+
     let interval =
         std::time::Duration::from_secs(config.epoch_seconds.into());
     info!("rotating epoch every {} seconds", interval.as_secs());
 
-    let starttime = time::OffsetDateTime::now_utc();
-    // Parse the epoch basetime if given.
-    let basetime: Option<time::OffsetDateTime> = config.into();
-    // If no epoch basetime was specified, use the startup time.
-    let basetime = basetime.unwrap_or(starttime);
-    assert!(
-        starttime >= basetime,
-        "epoch-basetime should be in the past"
-    );
+    let start_time = time::OffsetDateTime::now_utc();
+    // Parse the epoch base time if given.
+    let base_time: Option<time::OffsetDateTime> = config.into();
+    // If no epoch base time was specified, use the startup time.
+    let base_time = base_time.unwrap_or(start_time);
 
     // Calculate where we are in the epoch schedule relative to the
-    // basetime. We may need to start in the middle of the range.
-    let elapsed_epochs = (starttime - basetime) / interval;
-    let elapsed_count = elapsed_epochs.floor() as i64;
-    let epoch_count = config.last_epoch - config.first_epoch;
-    let offset = elapsed_count.rem_euclid(epoch_count.into());
-    let start = config.first_epoch + offset as u8;
+    // base time. We may need to start in the middle of the range.
+    assert!(
+        start_time >= base_time,
+        "epoch-basetime should be in the past"
+    );
+    // The time difference will be positive after the assert.
+    // The ratio of two Durations is an f64 (in seconds) which
+    // covers the representable range of `OffsetDateTime`.
+    // The `epochs` range is uses `u8` representation, so the
+    // length can only be one more than `u8::MAX` making it
+    // safe to truncate the modulo back to 8 bits.
+    let elapsed_epochs = (start_time - base_time) / interval;
+    let elapsed_count = elapsed_epochs.floor() as u64;
+    let offset = elapsed_count % epochs.len() as u64;
+    let current_epoch = epochs.start() + offset as u8;
 
-    // Advance to the current epoch if basetime indicates we started
+    // Advance to the current epoch if base time indicates we started
     // in the middle of a sequence.
-    if start != config.first_epoch {
+    if current_epoch != config.first_epoch {
         info!(
-            "Puncturing obsolete epochs {}..{} to match basetime",
-            config.first_epoch, start
+            "Puncturing obsolete epochs {}..{} to match base time",
+            config.first_epoch, current_epoch
         );
         let mut s = state.write().expect("Failed to lock OPRFState");
-        for epoch in config.first_epoch..start {
+        for epoch in config.first_epoch..current_epoch {
             s.server
                 .puncture(epoch)
                 .expect("Failed to puncture obsolete epoch");
         }
-        s.epoch = start;
+        s.epoch = current_epoch;
         info!("epoch now {}", s.epoch);
     }
 
-    // First rotation uses whatever time remains for the current epoch.
-    // This will be `interval` unless an epoch_basetime is specified.
-    let partial_seconds =
-        (1.0 - elapsed_epochs.fract()) * interval.as_secs_f64();
-    let partial = std::time::Duration::from_secs_f64(partial_seconds);
-    let mut next_rotation = starttime + partial;
-
-    let epochs = config.first_epoch..=config.last_epoch;
+    // First rotation happens after whatever time remains for the current epoch.
+    let mut next_rotation =
+        start_time + interval.mul_f64(elapsed_epochs.ceil());
 
     loop {
         // Pre-calculate the next_epoch_time for the InfoResponse hander.
         // Truncate to the nearest second.
-        let timestamp = next_rotation;
-        let timestamp = timestamp
+        let next_rotation_copy = next_rotation;
+        let timestamp = next_rotation_copy
             .replace_millisecond(0)
             .expect("should be able to round to a fixed ms")
             .format(&Rfc3339)
@@ -150,9 +152,9 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
 /// Parse a timestamp out of the Config
 impl From<&Config> for Option<time::OffsetDateTime> {
     fn from(config: &Config) -> Self {
-        let mut basetime = None;
+        let mut base_time = None;
         if let Some(stamp) = &config.epoch_basetime {
-            basetime = match time::OffsetDateTime::parse(stamp, &Rfc3339) {
+            base_time = match time::OffsetDateTime::parse(stamp, &Rfc3339) {
                 Ok(timestamp) => Some(timestamp),
                 Err(e) => {
                     warn!("Couldn't parse epoch-basetime argument: {e}");
@@ -160,6 +162,6 @@ impl From<&Config> for Option<time::OffsetDateTime> {
                 }
             }
         }
-        basetime
+        base_time
     }
 }
