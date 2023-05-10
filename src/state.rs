@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, RwLock};
 use time::format_description::well_known::Rfc3339;
-use tracing::{info, instrument, warn};
+use tracing::{info, instrument};
 
 use crate::Config;
 use ppoprf::ppoprf;
@@ -49,16 +49,17 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
     info!("rotating epoch every {} seconds", interval.as_secs());
 
     let start_time = time::OffsetDateTime::now_utc();
-    // Parse the epoch base time if given.
-    let base_time: Option<time::OffsetDateTime> = config.into();
-    // If no epoch base time was specified, use the startup time.
-    let base_time = base_time.unwrap_or(start_time);
+    // Parse the epoch base time if given, otherwise use start_time.
+    let base_time = config.epoch_base_time.as_ref()
+        .map(|stamp| time::OffsetDateTime::parse(stamp, &Rfc3339)
+            .expect("Couldn't parse epoch base time '{stamp}' as RFC 3339"))
+        .unwrap_or(start_time);
 
     // Calculate where we are in the epoch schedule relative to the
     // base time. We may need to start in the middle of the range.
     assert!(
         start_time >= base_time,
-        "epoch-basetime should be in the past"
+        "epoch-base-time should be in the past"
     );
     // The time difference will be positive after the assert.
     // The ratio of two Durations is an f64 (in seconds) which
@@ -89,14 +90,16 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
     }
 
     // First rotation happens after whatever time remains for the current epoch.
-    let mut next_rotation =
-        start_time + interval.mul_f64(elapsed_epochs.ceil());
+    // use Duration::mul_f64() to avoid overflow with short intervals and multi-
+    // decade base times, since `Duration` only implements `Mul<u32>`.
+    let offset = interval.mul_f64(elapsed_epochs.ceil());
+    let mut next_rotation = base_time + offset;
+    info!("time offset {offset:?} to the next rotation at {next_rotation:?}");
 
     loop {
         // Pre-calculate the next_epoch_time for the InfoResponse hander.
         // Truncate to the nearest second.
-        let next_rotation_copy = next_rotation;
-        let timestamp = next_rotation_copy
+        let timestamp = next_rotation
             .replace_millisecond(0)
             .expect("should be able to round to a fixed ms")
             .format(&Rfc3339)
@@ -146,22 +149,5 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
                 .expect("Could not initialize new PPOPRF state");
         }
         info!("epoch now {}", s.epoch);
-    }
-}
-
-/// Parse a timestamp out of the Config
-impl From<&Config> for Option<time::OffsetDateTime> {
-    fn from(config: &Config) -> Self {
-        let mut base_time = None;
-        if let Some(stamp) = &config.epoch_basetime {
-            base_time = match time::OffsetDateTime::parse(stamp, &Rfc3339) {
-                Ok(timestamp) => Some(timestamp),
-                Err(e) => {
-                    warn!("Couldn't parse epoch-basetime argument: {e}");
-                    None
-                }
-            }
-        }
-        base_time
     }
 }

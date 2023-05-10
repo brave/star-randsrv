@@ -14,5 +14,5 @@ sleep 1
 
 star-randsrv \
   --epoch-seconds 604800 \
-  --epoch-basetime 2023-05-01T00:00:00Z
+  --epoch-base-time 2023-05-01T00:00:00Z
 echo "[sh] Started star-randsrv."

@@ -33,8 +33,10 @@ pub struct Config {
     #[arg(long, default_value_t = 255)]
     last_epoch: u8,
     /// Optional absolute time at which to anchor the first epoch
+    /// This can be used to align the epoch sequence across different
+    /// invocations.
     #[arg(long, value_name = "RFC 3339 timestamp")]
-    epoch_basetime: Option<String>,
+    epoch_base_time: Option<String>,
 }
 
 /// Initialize an axum::Router for our web service

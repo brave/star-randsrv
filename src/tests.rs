@@ -21,7 +21,7 @@ fn test_app() -> crate::Router {
         epoch_seconds: 1,
         first_epoch: EPOCH,
         last_epoch: EPOCH * 2,
-        epoch_basetime: None,
+        epoch_base_time: None,
     };
     // server state
     let mut server =
