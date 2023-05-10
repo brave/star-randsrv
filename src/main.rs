@@ -3,6 +3,8 @@
 use axum::{routing::get, routing::post, Router};
 use clap::Parser;
 use std::sync::{Arc, RwLock};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 use tracing::{debug, info};
 
 mod handler;
@@ -35,8 +37,14 @@ pub struct Config {
     /// Optional absolute time at which to anchor the first epoch
     /// This can be used to align the epoch sequence across different
     /// invocations.
-    #[arg(long, value_name = "RFC 3339 timestamp")]
-    epoch_base_time: Option<String>,
+    #[arg(long, value_name = "RFC 3339 timestamp", value_parser = parse_timestamp)]
+    epoch_base_time: Option<OffsetDateTime>,
+}
+
+/// Parse a timestamp given as a config option
+fn parse_timestamp(stamp: &str) -> Result<OffsetDateTime, &'static str> {
+    OffsetDateTime::parse(stamp, &Rfc3339)
+        .map_err(|_| "Try something like '2023-05-15T04:30:00Z'.")
 }
 
 /// Initialize an axum::Router for our web service

@@ -49,11 +49,15 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
     info!("rotating epoch every {} seconds", interval.as_secs());
 
     let start_time = time::OffsetDateTime::now_utc();
-    // Parse the epoch base time if given, otherwise use start_time.
-    let base_time = config.epoch_base_time.as_ref()
-        .map(|stamp| time::OffsetDateTime::parse(stamp, &Rfc3339)
-            .expect("Couldn't parse epoch base time '{stamp}' as RFC 3339"))
-        .unwrap_or(start_time);
+    // Epoch base_time comes from a config argument if given,
+    // otherwise use start_time.
+    let base_time = config.epoch_base_time.unwrap_or(start_time);
+    info!(
+        "epoch base time {}",
+        base_time
+            .format(&Rfc3339)
+            .expect("well-known timestamp format should always succeed")
+    );
 
     // Calculate where we are in the epoch schedule relative to the
     // base time. We may need to start in the middle of the range.
