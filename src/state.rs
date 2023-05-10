@@ -105,7 +105,7 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
         // Truncate to the nearest second.
         let timestamp = next_rotation
             .replace_millisecond(0)
-            .expect("should be able to round to a fixed ms")
+            .expect("should be able to truncate to a fixed ms")
             .format(&Rfc3339)
             .expect("well-known timestamp format should always succeed");
         {
