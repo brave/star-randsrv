@@ -2,7 +2,7 @@
 
 nitriding \
 	-acme \
-	-fqdn "star-randsrv.bsg.brave.software" \
+	-fqdn "star-randsrv.bsg.brave.com" \
 	-appurl "https://github.com/brave/star-randsrv" \
 	-appwebsrv "http://127.0.0.1:8080" \
 	-extport 443 \
