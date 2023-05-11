@@ -66,14 +66,13 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
         "epoch-base-time should be in the past"
     );
     // The time difference will be positive after the assert.
-    // The ratio of two Durations is an f64 (in seconds) which
-    // covers the representable range of `OffsetDateTime`.
-    // The `epochs` range is uses `u8` representation, so the
-    // length can only be one more than `u8::MAX` making it
-    // safe to truncate the modulo back to 8 bits.
-    let elapsed_epochs = (start_time - base_time) / interval;
-    let elapsed_count = elapsed_epochs.floor() as u64;
-    let offset = elapsed_count % epochs.len() as u64;
+    // The ratio of two Durations is an f64 (in seconds) which covers
+    // the representable range of `OffsetDateTime`.
+    let elapsed_epochs = ((start_time - base_time) / interval).floor() as u64;
+
+    // The `epochs` range is `u8`, so the length can be no more
+    // than `u8::MAX + 1`, making it safe to truncate the modulo.
+    let offset = elapsed_epochs % epochs.len() as u64;
     let current_epoch = epochs.start() + offset as u8;
 
     // Advance to the current epoch if base time indicates we started
@@ -94,11 +93,12 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
     }
 
     // First rotation happens after whatever time remains for the current epoch.
-    // use Duration::mul_f64() to avoid overflow with short intervals and multi-
-    // decade base times, since `Duration` only implements `Mul<u32>`.
-    let offset = interval.mul_f64(elapsed_epochs.ceil());
-    let mut next_rotation = base_time + offset;
-    info!("time offset {offset:?} to the next rotation at {next_rotation:?}");
+    // `Duration` doesn't implement `Mul<u64>` so we must truncate the elapsed
+    // epoch count. Assert that this is valid in case base_time is very large
+    // while inverval is small.
+    assert!(elapsed_epochs < u32::MAX as u64, "cast mustn't overflow");
+    let mut next_rotation =
+        base_time + interval * (elapsed_epochs + 1) as u32;
 
     loop {
         // Pre-calculate the next_epoch_time for the InfoResponse hander.
