@@ -53,7 +53,7 @@ pub async fn epoch_loop(state: OPRFState, config: &Config) {
     // otherwise use start_time.
     let base_time = config.epoch_base_time.unwrap_or(start_time);
     info!(
-        "epoch base time {}",
+        "epoch base time = {}",
         base_time
             .format(&Rfc3339)
             .expect("well-known timestamp format should always succeed")
