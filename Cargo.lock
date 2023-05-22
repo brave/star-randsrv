@@ -125,9 +125,9 @@ checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
 
 [[package]]
 name = "base64"
-version = "0.21.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a4ddaa51a5bc52a6948f74c06d20aaaddb71924eab79b8c97a8c556e942d6a"
+checksum = "3f1e31e207a6b8fb791a38ea3105e6cb541f55e4d029902d3039a4ad07cc4105"
 
 [[package]]
 name = "bincode"
@@ -918,7 +918,7 @@ name = "star-randsrv"
 version = "0.2.0"
 dependencies = [
  "axum",
- "base64 0.21.0",
+ "base64 0.21.1",
  "clap",
  "curve25519-dalek",
  "hyper",
