@@ -1,7 +1,7 @@
 # Start by building the nitriding proxy daemon.
 FROM public.ecr.aws/docker/library/golang:1.20.4-alpine as go-builder
 
-RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon/cmd@v1.1.0
+RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.2.0
 
 # Build the web server application itself.
 # Use the -alpine variant so it will run in a alpine-based container.
@@ -26,7 +26,7 @@ RUN chmod 755 /start.sh
 # Copy from the builder imagse to keep the final image reproducible and small,
 # and to improve reproducibilty of the build.
 FROM public.ecr.aws/docker/library/alpine:3.18.0
-COPY --from=go-builder /go/bin/cmd /usr/local/bin/nitriding
+COPY --from=go-builder /go/bin/nitriding-daemon /usr/local/bin/nitriding
 COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
 COPY --from=file-builder /start.sh /usr/local/bin/
 
