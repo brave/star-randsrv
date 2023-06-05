@@ -12,5 +12,7 @@ echo "[sh] Started nitriding as reverse proxy."
 
 sleep 1
 
-star-randsrv --epoch-seconds 604800
+star-randsrv \
+  --epoch-seconds 604800 \
+  --epoch-base-time 2023-05-01T00:00:00Z
 echo "[sh] Started star-randsrv."

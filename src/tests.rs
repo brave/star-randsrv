@@ -8,6 +8,8 @@ use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use serde_json::{json, Value};
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
+use time::OffsetDateTime;
 use tower::ServiceExt;
 
 const EPOCH: u8 = 12;
@@ -17,10 +19,11 @@ const NEXT_EPOCH_TIME: &str = "2023-03-22T21:46:35Z";
 fn test_app() -> crate::Router {
     // arbitrary config
     let config = crate::Config {
+        listen: "127.0.0.1:8081".to_string(),
         epoch_seconds: 1,
         first_epoch: EPOCH,
         last_epoch: EPOCH * 2,
-        listen: "127.0.0.1:8081".to_string(),
+        epoch_base_time: None,
     };
     // server state
     let mut server =
@@ -154,6 +157,75 @@ async fn epoch() {
     let request = test_request("/randomness", Some(payload));
     let response = test_app().oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+/// If --epoch-base-time is set, confirm the server starts
+/// with the correct epoch.
+#[tokio::test]
+async fn epoch_base_time() {
+    let now = OffsetDateTime::now_utc();
+    let delay = Duration::from_secs(5);
+
+    // Config with explicit base time
+    let config = crate::Config {
+        listen: "127.0.0.1:8081".to_string(),
+        epoch_seconds: 1,
+        first_epoch: EPOCH,
+        last_epoch: EPOCH * 2,
+        epoch_base_time: Some(now - delay),
+    };
+    // Verify test parameters are compatible with the
+    // expected_epoch calculation.
+    assert!(EPOCH as u64 + delay.as_secs() < EPOCH as u64 * 2);
+    let expected_epoch = EPOCH + delay.as_secs() as u8;
+    let advance = Duration::from_secs(config.epoch_seconds.into());
+    let expected_time = (now + advance)
+        // Published timestamp is truncated to the second.
+        .replace_millisecond(0)
+        .expect("should be able to truncate to a fixed ms")
+        .format(&time::format_description::well_known::Rfc3339)
+        .expect("well-known timestamp format should always succeed");
+
+    // server state
+    let server =
+        OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
+    let oprf_state = Arc::new(RwLock::new(server));
+    // background task to manage epoch rotation
+    let background_state = oprf_state.clone();
+    tokio::spawn(async move {
+        crate::state::epoch_loop(background_state, &config).await
+    });
+
+    // Wait for `epoch_loop` to update `next_epoch_time` as a proxy
+    // for completing epoch schedule initialization. Use a timeout
+    // to avoid hanging test runs.
+    let pause = Duration::from_millis(10);
+    let mut tries = 0;
+    while oprf_state.read().unwrap().next_epoch_time.is_none() {
+        println!("waiting for {pause:?} for initialization {tries}");
+        assert!(tries < 10, "timeout waiting for epoch_loop initialization");
+        tokio::time::sleep(pause).await;
+        tries += 1;
+    }
+
+    // attach axum routes and middleware
+    let app = crate::app(oprf_state);
+
+    let request = test_request("/info", None);
+    let response = app.oneshot(request).await.unwrap();
+
+    // Info should return the correct epoch, etc.
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    assert!(!body.is_empty());
+    let json: Value = serde_json::from_slice(body.as_ref())
+        .expect("Could not parse response body as json");
+    assert!(json.is_object());
+    println!("{:?}", json);
+    assert_eq!(json["currentEpoch"], json!(expected_epoch));
+    assert!(json["nextEpochTime"].is_string());
+    let next_epoch_time = json["nextEpochTime"].as_str().unwrap();
+    assert_eq!(next_epoch_time, expected_time);
 }
 
 /// Check a randomness response body for validity
