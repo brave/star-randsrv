@@ -5,7 +5,7 @@ RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.c
 
 # Build the web server application itself.
 # Use the -alpine variant so it will run in a alpine-based container.
-FROM public.ecr.aws/docker/library/rust:1.69.0-alpine as rust-builder
+FROM public.ecr.aws/docker/library/rust:1.70.0-alpine as rust-builder
 # Base image may not support C linkage.
 RUN apk add musl-dev
 
@@ -14,7 +14,7 @@ COPY Cargo.toml Cargo.lock .
 COPY src src
 # The '--locked' argument is important for reproducibility because it ensures
 # that we use specific dependencies.
-RUN CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse cargo build --locked --release
+RUN cargo build --locked --release
 
 FROM public.ecr.aws/docker/library/alpine:3.18.0 as file-builder
 
