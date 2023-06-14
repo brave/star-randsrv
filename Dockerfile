@@ -1,7 +1,7 @@
 # Start by building the nitriding proxy daemon.
 FROM public.ecr.aws/docker/library/golang:1.20.5-alpine as go-builder
 
-RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.2.1
+RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.3.1
 
 # Build the web server application itself.
 # Use the -alpine variant so it will run in a alpine-based container.
