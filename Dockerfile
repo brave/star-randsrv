@@ -16,7 +16,7 @@ COPY src src
 # that we use specific dependencies.
 RUN cargo build --locked --release
 
-FROM public.ecr.aws/docker/library/alpine:3.18.0 as file-builder
+FROM public.ecr.aws/docker/library/alpine:3.18.2 as file-builder
 
 # Set up the run-time environment
 COPY start.sh /
@@ -25,7 +25,7 @@ RUN chmod 755 /start.sh
 
 # Copy from the builder imagse to keep the final image reproducible and small,
 # and to improve reproducibilty of the build.
-FROM public.ecr.aws/docker/library/alpine:3.18.0
+FROM public.ecr.aws/docker/library/alpine:3.18.2
 COPY --from=go-builder /go/bin/nitriding-daemon /usr/local/bin/nitriding
 COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
 COPY --from=file-builder /start.sh /usr/local/bin/
