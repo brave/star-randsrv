@@ -840,6 +840,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f162c6dd7b008981e4d40210aca20b4bd0f9b60ca9271061b07f78537722f2e1"
 
 [[package]]
+name = "rlimit"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b5b8be0bc0ef630d24f8fa836b3a3463479b2343b29f9a8fa905c71a8c7b69b"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -989,6 +998,7 @@ dependencies = [
  "hyper",
  "ppoprf",
  "rand_core 0.5.1",
+ "rlimit",
  "serde",
  "serde_json",
  "thiserror",
