@@ -7,7 +7,7 @@ license = "MPL-2.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.6.18"
+axum = "0.6.19"
 base64 = "0.21.2"
 clap = { version = "4.3.14", features = ["derive"] }
 curve25519-dalek = "3.2.0"
