@@ -24,10 +24,10 @@ fn test_app() -> crate::Router {
         first_epoch: EPOCH,
         last_epoch: EPOCH * 2,
         epoch_base_time: None,
+        increase_nofile_limit: false,
     };
     // server state
-    let mut server =
-        OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
+    let mut server = OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
     server.next_epoch_time = Some(NEXT_EPOCH_TIME.to_owned());
     let oprf_state = Arc::new(RwLock::new(server));
 
@@ -79,8 +79,8 @@ async fn info() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
     assert!(!body.is_empty());
-    let json: Value = serde_json::from_slice(body.as_ref())
-        .expect("Could not parse response body as json");
+    let json: Value =
+        serde_json::from_slice(body.as_ref()).expect("Could not parse response body as json");
     assert!(json.is_object());
     println!("{:?}", json);
     assert_eq!(json["currentEpoch"], json!(EPOCH));
@@ -173,6 +173,7 @@ async fn epoch_base_time() {
         first_epoch: EPOCH,
         last_epoch: EPOCH * 2,
         epoch_base_time: Some(now - delay),
+        increase_nofile_limit: false,
     };
     // Verify test parameters are compatible with the
     // expected_epoch calculation.
@@ -187,14 +188,11 @@ async fn epoch_base_time() {
         .expect("well-known timestamp format should always succeed");
 
     // server state
-    let server =
-        OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
+    let server = OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
     let oprf_state = Arc::new(RwLock::new(server));
     // background task to manage epoch rotation
     let background_state = oprf_state.clone();
-    tokio::spawn(async move {
-        crate::state::epoch_loop(background_state, &config).await
-    });
+    tokio::spawn(async move { crate::state::epoch_loop(background_state, &config).await });
 
     // Wait for `epoch_loop` to update `next_epoch_time` as a proxy
     // for completing epoch schedule initialization. Use a timeout
@@ -218,8 +216,8 @@ async fn epoch_base_time() {
     assert_eq!(response.status(), StatusCode::OK);
     let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
     assert!(!body.is_empty());
-    let json: Value = serde_json::from_slice(body.as_ref())
-        .expect("Could not parse response body as json");
+    let json: Value =
+        serde_json::from_slice(body.as_ref()).expect("Could not parse response body as json");
     assert!(json.is_object());
     println!("{:?}", json);
     assert_eq!(json["currentEpoch"], json!(expected_epoch));
@@ -232,8 +230,8 @@ async fn epoch_base_time() {
 fn verify_randomness_body(body: axum::body::Bytes, expected_points: usize) {
     // Randomness should return a list of points and an epoch.
     assert!(!body.is_empty());
-    let json: Value = serde_json::from_slice(body.as_ref())
-        .expect("Response body should parse as json");
+    let json: Value =
+        serde_json::from_slice(body.as_ref()).expect("Response body should parse as json");
     // Top-level value should be an object.
     assert!(json.is_object());
     // Epoch should match test_app.
