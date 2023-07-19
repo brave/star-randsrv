@@ -8,6 +8,7 @@ nitriding \
 	-prometheus-port 9090 \
 	-vsock-ext \
 	-disable-keep-alives \
+	-prometheus-namespace "starrandsrv" \
 	-extport 443 \
 	-intport 8081 &
 echo "[sh] Started nitriding as reverse proxy."
