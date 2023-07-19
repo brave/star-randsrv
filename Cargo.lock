@@ -158,9 +158,9 @@ dependencies = [
 
 [[package]]
 name = "base64"
-version = "0.20.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ea22880d78093b0cbe17c89f64a7d457941e65759157ec6cb31a31d652b05e5"
+checksum = "9e1b586273c5702936fe7b7d6896644d8be71e6314cfe09d3167c95f712589e8"
 
 [[package]]
 name = "base64"
@@ -722,10 +722,11 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "ppoprf"
-version = "0.0.1"
-source = "git+https://github.com/brave/sta-rs?rev=1937393e9d76c5333af47dd2ae2778b7e63fafd4#1937393e9d76c5333af47dd2ae2778b7e63fafd4"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "71bc43fb95c84d389ee1efae9a6d95db61a5b488619d8eaba5511b38defaa1d3"
 dependencies = [
- "base64 0.20.0",
+ "base64 0.13.1",
  "bincode",
  "bitvec",
  "curve25519-dalek",
@@ -734,10 +735,15 @@ dependencies = [
  "rand_core 0.5.1",
  "rand_core 0.6.4",
  "serde",
- "strobe-rng",
  "strobe-rs",
  "zeroize",
 ]
+
+[[package]]
+name = "ppv-lite86"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 
 [[package]]
 name = "proc-macro2"
@@ -769,6 +775,18 @@ version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
 dependencies = [
+ "libc",
+ "rand_chacha",
+ "rand_core 0.6.4",
+]
+
+[[package]]
+name = "rand_chacha"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
+dependencies = [
+ "ppv-lite86",
  "rand_core 0.6.4",
 ]
 
@@ -1012,15 +1030,6 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "strobe-rng"
-version = "0.1.0"
-source = "git+https://github.com/brave/sta-rs?rev=1937393e9d76c5333af47dd2ae2778b7e63fafd4#1937393e9d76c5333af47dd2ae2778b7e63fafd4"
-dependencies = [
- "rand_core 0.6.4",
- "strobe-rs",
 ]
 
 [[package]]
