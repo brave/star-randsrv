@@ -6,6 +6,7 @@ use axum::http::Request;
 use axum::http::StatusCode;
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -102,7 +103,7 @@ async fn randomness() {
     let app = test_app();
 
     // Create a single-point randomness request.
-    let point = RistrettoPoint::random(&mut rand_core::OsRng);
+    let point = RistrettoPoint::random(&mut OsRng);
     let payload = json!({ "points": [
         BASE64.encode(point.compress().as_bytes())
     ]})
@@ -253,7 +254,7 @@ fn verify_randomness_body(body: axum::body::Bytes, expected_points: usize) {
 fn make_points(count: usize) -> Vec<String> {
     let mut points = Vec::with_capacity(count);
     for _ in 0..count {
-        let point = RistrettoPoint::random(&mut rand_core::OsRng);
+        let point = RistrettoPoint::random(&mut OsRng);
         let b64point = BASE64.encode(point.compress().as_bytes());
         points.push(b64point);
     }
