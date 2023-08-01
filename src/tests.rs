@@ -26,6 +26,7 @@ fn test_app() -> crate::Router {
         last_epoch: EPOCH * 2,
         epoch_base_time: None,
         increase_nofile_limit: false,
+        prometheus_listen: None,
     };
     // server state
     let mut server = OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
@@ -175,6 +176,7 @@ async fn epoch_base_time() {
         last_epoch: EPOCH * 2,
         epoch_base_time: Some(now - delay),
         increase_nofile_limit: false,
+        prometheus_listen: None,
     };
     // Verify test parameters are compatible with the
     // expected_epoch calculation.
