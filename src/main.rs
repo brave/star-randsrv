@@ -1,12 +1,15 @@
 //! STAR Randomness web service
 
 use axum::{routing::get, routing::post, Router};
+use axum_prometheus::PrometheusMetricLayer;
 use clap::Parser;
+use metrics_exporter_prometheus::PrometheusHandle;
 use rlimit::Resource;
 use std::sync::{Arc, RwLock};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
-use tracing::{debug, info};
+use tracing::{debug, info, metadata::LevelFilter};
+use tracing_subscriber::EnvFilter;
 
 mod handler;
 mod state;
@@ -44,6 +47,9 @@ pub struct Config {
     /// more concurrent connections.
     #[arg(long, default_value_t = false)]
     increase_nofile_limit: bool,
+    /// Enable prometheus metric reporting and listen on specified address.
+    #[arg(long)]
+    prometheus_listen: Option<String>,
 }
 
 /// Parse a timestamp given as a config option
@@ -66,6 +72,19 @@ fn app(oprf_state: OPRFState) -> Router {
         .layer(tower_http::trace::TraceLayer::new_for_http())
 }
 
+fn start_prometheus_server(metrics_handle: PrometheusHandle, listen: String) {
+    tokio::spawn(async move {
+        let addr = listen.parse().unwrap();
+        let metrics_app =
+            Router::new().route("/metrics", get(|| async move { metrics_handle.render() }));
+        info!("Metrics server listening on {}", &listen);
+        axum::Server::bind(&addr)
+            .serve(metrics_app.into_make_service())
+            .await
+            .unwrap();
+    });
+}
+
 fn increase_nofile_limit() {
     let curr_limits =
         rlimit::getrlimit(Resource::NOFILE).expect("should be able to get current nofile limit");
@@ -84,7 +103,14 @@ fn increase_nofile_limit() {
 async fn main() {
     // Start logging
     // The default subscriber respects filter directives like `RUST_LOG=info`
-    tracing_subscriber::fmt::init();
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env()
+                .unwrap(),
+        )
+        .init();
     info!("STARing up!");
 
     // Command line switches
@@ -102,6 +128,12 @@ async fn main() {
     info!("epoch now {}", server.epoch);
     let oprf_state = Arc::new(RwLock::new(server));
 
+    let metric_layer = config.prometheus_listen.as_ref().map(|listen| {
+        let (layer, handle) = PrometheusMetricLayer::pair();
+        start_prometheus_server(handle, listen.clone());
+        layer
+    });
+
     // Spawn a background process to advance the epoch
     info!("Spawning background epoch rotation task...");
     let background_state = oprf_state.clone();
@@ -109,7 +141,10 @@ async fn main() {
 
     // Set up routes and middleware
     info!("initializing routes...");
-    let app = app(oprf_state);
+    let mut app = app(oprf_state);
+    if let Some(metric_layer) = metric_layer {
+        app = app.layer(metric_layer);
+    }
 
     // Start the server
     info!("Listening on {}", &addr);

@@ -22,5 +22,6 @@ star-randsrv \
   --epoch-seconds 604800 \
   --epoch-base-time 2023-05-01T00:00:00Z \
   --increase-nofile-limit \
-  --listen "127.0.0.1:8081"
+  --listen "127.0.0.1:8081" \
+  --prometheus-listen "0.0.0.0:9090"
 
