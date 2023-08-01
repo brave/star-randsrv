@@ -10,7 +10,7 @@ edition = "2021"
 axum = "0.6.19"
 base64 = "0.21.2"
 clap = { version = "4.3.19", features = ["derive"] }
-ppoprf = "0.2.1"
+ppoprf = "0.3.0"
 rlimit = "0.10"
 serde = "1.0.180"
 serde_json = "1.0.104"
