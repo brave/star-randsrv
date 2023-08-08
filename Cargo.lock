@@ -962,9 +962,9 @@ checksum = "f32154ba0af3a075eefa1eda8bb414ee928f62303a54ea85b8d6638ff1a6ee9e"
 
 [[package]]
 name = "ppoprf"
-version = "0.3.0"
+version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0901b000a81de5b9cfffcd9d3a62035a21564cae99110d835245f7c827479b9f"
+checksum = "d97a7a93423a5988e153e29de494b2625528196476213a4401e91140487faf1a"
 dependencies = [
  "base64 0.13.1",
  "bincode",
