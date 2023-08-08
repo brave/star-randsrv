@@ -7,7 +7,7 @@ license = "MPL-2.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.6.19"
+axum = "0.6.20"
 axum-prometheus = "0.4.0"
 base64 = "0.21.2"
 clap = { version = "4.3.19", features = ["derive"] }
