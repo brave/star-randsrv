@@ -1,7 +1,6 @@
 #!/bin/sh
 
 nitriding \
-	-mock-cert-fp "D87B0D697A90A2503F68E406CC8AFC26F2470F82F707D8E66616BA888B1B43C0" \
 	-fqdn "star-randsrv.bsg.brave.com" \
 	-appurl "https://github.com/brave/star-randsrv" \
 	-appwebsrv "http://127.0.0.1:8080" \
