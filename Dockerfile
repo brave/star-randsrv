@@ -1,34 +1,34 @@
+# In this image, we avoid using alpine due to performance issues
+# with musl. We use debian slim so we can use glibc for best performance.
+
 # Start by building the nitriding proxy daemon.
-FROM public.ecr.aws/docker/library/golang:1.21.0-alpine as go-builder
+FROM public.ecr.aws/docker/library/golang:1.21.0-bookworm as go-builder
 
 RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.4.2
 
 # Build the web server application itself.
-# Use the -alpine variant so it will run in a alpine-based container.
-FROM public.ecr.aws/docker/library/rust:1.71.1-alpine as rust-builder
-# Base image may not support C linkage.
-RUN apk add musl-dev
+FROM public.ecr.aws/docker/library/rust:1.71.1-slim-bookworm as rust-builder
+
+RUN apt update && apt install -y build-essential
 
 WORKDIR /src/
-COPY Cargo.toml Cargo.lock .
-COPY src src
+COPY Cargo.toml Cargo.lock ./
+COPY src src/
 # The '--locked' argument is important for reproducibility because it ensures
 # that we use specific dependencies.
 RUN cargo build --locked --release
 
-FROM public.ecr.aws/docker/library/alpine:3.18.3 as file-builder
-
 # Set up the run-time environment
-COPY start.sh /
-RUN chown root:root /start.sh
-RUN chmod 755 /start.sh
+FROM public.ecr.aws/docker/library/debian:12.1-slim
 
-# Copy from the builder imagse to keep the final image reproducible and small,
-# and to improve reproducibilty of the build.
-FROM public.ecr.aws/docker/library/alpine:3.18.3
+RUN apt update && apt install -y ca-certificates
+
+COPY start.sh /usr/local/bin
+RUN chown root:root /usr/local/bin/start.sh
+RUN chmod 755 /usr/local/bin/start.sh
+
 COPY --from=go-builder /go/bin/nitriding-daemon /usr/local/bin/nitriding
 COPY --from=rust-builder /src/target/release/star-randsrv /usr/local/bin/
-COPY --from=file-builder /start.sh /usr/local/bin/
 
 EXPOSE 443
 # Switch to the UID that's typically reserved for the user "nobody".

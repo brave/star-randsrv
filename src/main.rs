@@ -6,10 +6,14 @@ use clap::Parser;
 use metrics_exporter_prometheus::PrometheusHandle;
 use rlimit::Resource;
 use std::sync::{Arc, RwLock};
+use tikv_jemallocator::Jemalloc;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tracing::{debug, info, metadata::LevelFilter};
 use tracing_subscriber::EnvFilter;
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 mod handler;
 mod state;

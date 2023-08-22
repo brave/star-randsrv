@@ -17,6 +17,7 @@ rlimit = "0.10"
 serde = "1.0.185"
 serde_json = "1.0.105"
 thiserror = "1.0.47"
+tikv-jemallocator = "0.5"
 time = { version = "0.3.27", features = ["formatting", "parsing"] }
 tokio = { version = "1.32.0", features = ["full"] }
 tower-http = { version = "0.4.3", features = ["trace"] }
