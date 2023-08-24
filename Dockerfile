@@ -7,7 +7,7 @@ FROM public.ecr.aws/docker/library/golang:1.21.0-bookworm as go-builder
 RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.4.2
 
 # Build the web server application itself.
-FROM public.ecr.aws/docker/library/rust:1.71.1-slim-bookworm as rust-builder
+FROM public.ecr.aws/docker/library/rust:1.72.0-slim-bookworm as rust-builder
 
 RUN apt update && apt install -y build-essential
 
