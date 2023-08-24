@@ -2,23 +2,23 @@
 
 use axum::{routing::get, routing::post, Router};
 use axum_prometheus::PrometheusMetricLayer;
+use calendar_duration::CalendarDuration;
 use clap::Parser;
 use metrics_exporter_prometheus::PrometheusHandle;
 use rlimit::Resource;
-use std::sync::{Arc, RwLock};
+use state::{OPRFServer, OPRFState};
 use tikv_jemallocator::Jemalloc;
-use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use tracing::{debug, info, metadata::LevelFilter};
 use tracing_subscriber::EnvFilter;
+use util::{assert_unique_names, parse_timestamp};
 
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
 mod handler;
 mod state;
-
-pub use state::OPRFState;
+mod util;
 
 #[cfg(test)]
 mod tests;
@@ -27,15 +27,22 @@ mod tests;
 const MAX_POINTS: usize = 1024;
 
 /// Command line switches
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 pub struct Config {
     /// Host and port to listen for http connections
     #[arg(long, default_value = "127.0.0.1:8080")]
     listen: String,
-    /// Duration of each randomness epoch
-    #[arg(long, default_value_t = 5)]
-    epoch_seconds: u32,
+    /// Name of OPRF instance contained in server. Multiple instances may be defined
+    /// by defining this switch multiple times. The first defined instance will
+    /// become the default instance.
+    #[arg(long = "instance-name", default_value = "main")]
+    instance_names: Vec<String>,
+    /// Duration of each randomness epoch. This switch may be defined multiple times
+    /// to set the epoch length for each respective instance, if multiple instances
+    /// are defined.
+    #[arg(long = "epoch-duration", value_name = "Duration string i.e. 1mon5h2s", default_values = ["5s"])]
+    epoch_durations: Vec<CalendarDuration>,
     /// First epoch tag to make available
     #[arg(long, default_value_t = 0)]
     first_epoch: u8,
@@ -56,20 +63,24 @@ pub struct Config {
     prometheus_listen: Option<String>,
 }
 
-/// Parse a timestamp given as a config option
-fn parse_timestamp(stamp: &str) -> Result<OffsetDateTime, &'static str> {
-    OffsetDateTime::parse(stamp, &Rfc3339).map_err(|_| "Try something like '2023-05-15T04:30:00Z'.")
-}
-
 /// Initialize an axum::Router for our web service
 /// Having this as a separate function makes testing easier.
 fn app(oprf_state: OPRFState) -> Router {
     Router::new()
         // Friendly default route to identify the site
         .route("/", get(|| async { "STAR randomness server\n" }))
-        // Main endpoints
-        .route("/randomness", post(handler::randomness))
-        .route("/info", get(handler::info))
+        // Endpoints for all instances
+        .route(
+            "/instances/:instance/randomness",
+            post(handler::specific_instance_randomness),
+        )
+        .route(
+            "/instances/:instance/info",
+            get(handler::specific_instance_info),
+        )
+        // Endpoints for default instance
+        .route("/randomness", post(handler::default_instance_randomness))
+        .route("/info", get(handler::default_instance_info))
         // Attach shared state
         .with_state(oprf_state)
         // Logging must come after active routes
@@ -126,11 +137,19 @@ async fn main() {
         increase_nofile_limit();
     }
 
-    // Oblivious function state
-    info!("initializing OPRF state...");
-    let server = state::OPRFServer::new(&config).expect("Could not initialize PPOPRF state");
-    info!("epoch now {}", server.epoch);
-    let oprf_state = Arc::new(RwLock::new(server));
+    assert_unique_names(&config.instance_names);
+    assert!(
+        !config.epoch_durations.iter().any(|d| d.is_zero()),
+        "all epoch lengths must be non-zero"
+    );
+    assert!(
+        !config.instance_names.is_empty(),
+        "at least one instance name must be defined"
+    );
+    assert!(
+        config.instance_names.len() == config.epoch_durations.len(),
+        "instance-name switch count must match epoch-seconds switch count"
+    );
 
     let metric_layer = config.prometheus_listen.as_ref().map(|listen| {
         let (layer, handle) = PrometheusMetricLayer::pair();
@@ -138,10 +157,8 @@ async fn main() {
         layer
     });
 
-    // Spawn a background process to advance the epoch
-    info!("Spawning background epoch rotation task...");
-    let background_state = oprf_state.clone();
-    tokio::spawn(async move { state::epoch_loop(background_state, &config).await });
+    let oprf_state = OPRFServer::new(&config);
+    oprf_state.start_background_tasks(&config);
 
     // Set up routes and middleware
     info!("initializing routes...");

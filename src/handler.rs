@@ -1,12 +1,14 @@
 //! STAR Randomness web service route implementation
 
-use axum::extract::{Json, State};
+use std::sync::RwLockReadGuard;
+
+use axum::extract::{Json, Path, State};
 use axum::http::StatusCode;
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use serde::{Deserialize, Serialize};
-use tracing::debug;
+use tracing::{debug, instrument};
 
-use crate::OPRFState;
+use crate::state::{OPRFInstance, OPRFState};
 use ppoprf::ppoprf;
 
 /// Request format for the randomness endpoint
@@ -63,6 +65,8 @@ struct ErrorResponse {
 /// handling requests.
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
+    #[error("instance '{0}' not found")]
+    InstanceNotFound(String),
     #[error("Couldn't lock state: RwLock poisoned")]
     LockFailure,
     #[error("Invalid point")]
@@ -93,6 +97,7 @@ impl axum::response::IntoResponse for Error {
     /// Construct an http response from our error type
     fn into_response(self) -> axum::response::Response {
         let code = match self {
+            Error::InstanceNotFound(_) => StatusCode::NOT_FOUND,
             // This indicates internal failure.
             Error::LockFailure => StatusCode::INTERNAL_SERVER_ERROR,
             // Other cases are the client's fault.
@@ -105,13 +110,28 @@ impl axum::response::IntoResponse for Error {
     }
 }
 
+type Result<T> = std::result::Result<T, Error>;
+
+fn get_server_from_state(
+    state: &OPRFState,
+    instance_name: String,
+) -> Result<RwLockReadGuard<'_, OPRFInstance>> {
+    Ok(state
+        .instances
+        .get(&instance_name)
+        .ok_or(Error::InstanceNotFound(instance_name))?
+        .read()?)
+}
+
 /// Process PPOPRF evaluation requests
-pub async fn randomness(
-    State(state): State<OPRFState>,
-    Json(request): Json<RandomnessRequest>,
-) -> Result<Json<RandomnessResponse>, Error> {
+#[instrument(skip(state, request))]
+async fn randomness(
+    state: OPRFState,
+    instance_name: String,
+    request: RandomnessRequest,
+) -> Result<Json<RandomnessResponse>> {
     debug!("recv: {request:?}");
-    let state = state.read()?;
+    let state = get_server_from_state(&state, instance_name)?;
     let epoch = request.epoch.unwrap_or(state.epoch);
     if epoch != state.epoch {
         return Err(Error::BadEpoch(epoch));
@@ -138,12 +158,29 @@ pub async fn randomness(
     Ok(Json(response))
 }
 
-/// Process PPOPRF epoch and key requests
-pub async fn info(
+/// Process PPOPRF evaluation requests using default instance
+pub async fn default_instance_randomness(
     State(state): State<OPRFState>,
-) -> Result<Json<InfoResponse>, Error> {
+    Json(request): Json<RandomnessRequest>,
+) -> Result<Json<RandomnessResponse>> {
+    let instance_name = state.default_instance.clone();
+    randomness(state, instance_name, request).await
+}
+
+/// Process PPOPRF evaluation requests using specific instance
+pub async fn specific_instance_randomness(
+    State(state): State<OPRFState>,
+    Path(instance_name): Path<String>,
+    Json(request): Json<RandomnessRequest>,
+) -> Result<Json<RandomnessResponse>> {
+    randomness(state, instance_name, request).await
+}
+
+/// Provide PPOPRF epoch and key metadata
+#[instrument(skip(state))]
+async fn info(state: OPRFState, instance_name: String) -> Result<Json<InfoResponse>> {
     debug!("recv: info request");
-    let state = state.read()?;
+    let state = get_server_from_state(&state, instance_name)?;
     let public_key = state.server.get_public_key().serialize_to_bincode()?;
     let public_key = BASE64.encode(public_key);
     let response = InfoResponse {
@@ -154,4 +191,18 @@ pub async fn info(
     };
     debug!("send: {response:?}");
     Ok(Json(response))
+}
+
+/// Provide PPOPRF epoch and key metadata using default instance
+pub async fn default_instance_info(State(state): State<OPRFState>) -> Result<Json<InfoResponse>> {
+    let instance_name = state.default_instance.clone();
+    info(state, instance_name).await
+}
+
+/// Provide PPOPRF epoch and key metadata using specific instance
+pub async fn specific_instance_info(
+    State(state): State<OPRFState>,
+    Path(instance_name): Path<String>,
+) -> Result<Json<InfoResponse>> {
+    info(state, instance_name).await
 }
