@@ -14,7 +14,7 @@ clap = { version = "4.3.24", features = ["derive"] }
 metrics-exporter-prometheus = "0.12.1"
 ppoprf = "0.3.1"
 rlimit = "0.10"
-serde = "1.0.185"
+serde = "1.0.188"
 serde_json = "1.0.105"
 thiserror = "1.0.47"
 tikv-jemallocator = "0.5"
