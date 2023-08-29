@@ -78,6 +78,7 @@ fn app(oprf_state: OPRFState) -> Router {
             "/instances/:instance/info",
             get(handler::specific_instance_info),
         )
+        .route("/instances", get(handler::list_instances))
         // Endpoints for default instance
         .route("/randomness", post(handler::default_instance_randomness))
         .route("/info", get(handler::default_instance_info))
