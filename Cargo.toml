@@ -9,7 +9,7 @@ edition = "2021"
 [dependencies]
 axum = "0.6.20"
 axum-prometheus = "0.4.0"
-base64 = "0.21.3"
+base64 = "0.21.4"
 clap = { version = "4.4.2", features = ["derive"] }
 metrics-exporter-prometheus = "0.12.1"
 ppoprf = "0.3.1"
