@@ -253,6 +253,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "89b2fd2a0dcf38d7971e2194b6b6eebab45ae01067456a7fd93d5547a61b70be"
 
 [[package]]
+name = "calendar-duration"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76370179d4c93316e4e8482bd113f89621ad8acdbb0e0dacac2d06412eab97f0"
+dependencies = [
+ "time",
+]
+
+[[package]]
 name = "cc"
 version = "1.0.79"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1243,6 +1252,7 @@ dependencies = [
  "axum",
  "axum-prometheus",
  "base64 0.21.4",
+ "calendar-duration",
  "clap",
  "curve25519-dalek",
  "hyper",
