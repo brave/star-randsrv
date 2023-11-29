@@ -88,14 +88,13 @@ fn app(oprf_state: OPRFState) -> Router {
         .layer(tower_http::trace::TraceLayer::new_for_http())
 }
 
-fn start_prometheus_server(metrics_handle: PrometheusHandle, listen: String) {
+fn start_prometheus_server(metrics_handle: PrometheusHandle, addr: String) {
     tokio::spawn(async move {
-        let addr = listen.parse().unwrap();
         let metrics_app =
             Router::new().route("/metrics", get(|| async move { metrics_handle.render() }));
-        info!("Metrics server listening on {}", &listen);
-        axum::Server::bind(&addr)
-            .serve(metrics_app.into_make_service())
+        info!("Metrics server listening on {}", addr);
+        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        axum::serve(listener, metrics_app)
             .await
             .unwrap();
     });
@@ -132,7 +131,6 @@ async fn main() {
     // Command line switches
     let config = Config::parse();
     debug!(?config, "config parsed");
-    let addr = config.listen.parse().unwrap();
 
     if config.increase_nofile_limit {
         increase_nofile_limit();
@@ -169,9 +167,8 @@ async fn main() {
     }
 
     // Start the server
+    let addr = config.listen;
     info!("Listening on {}", &addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
