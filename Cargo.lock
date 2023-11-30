@@ -1380,7 +1380,6 @@ dependencies = [
  "clap",
  "curve25519-dalek",
  "http-body-util",
- "hyper 1.0.1",
  "metrics-exporter-prometheus",
  "ppoprf",
  "rand",

@@ -28,7 +28,6 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 [dev-dependencies]
 curve25519-dalek = { version = "4.1.1", features = ["rand_core"] }
 http-body-util = "0.1.0"
-hyper = "1.0.1"
 rand = { version = "0.8.5", features = ["getrandom"] }
 tower = "0.4.13"
 
