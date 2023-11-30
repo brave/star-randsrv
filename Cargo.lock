@@ -110,7 +110,39 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "810a80b128d70e6ed2bdf3fe8ed72c0ae56f5f5948d01c2753282dd92a84fce8"
 dependencies = [
  "async-trait",
- "axum-core",
+ "axum-core 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bytes",
+ "futures-util",
+ "http 1.0.0",
+ "http-body 1.0.0",
+ "http-body-util",
+ "hyper 1.0.1",
+ "hyper-util",
+ "itoa",
+ "matchit",
+ "memchr",
+ "mime",
+ "percent-encoding",
+ "pin-project-lite",
+ "rustversion",
+ "serde",
+ "serde_json",
+ "serde_path_to_error",
+ "serde_urlencoded",
+ "sync_wrapper",
+ "tokio",
+ "tower",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
+name = "axum"
+version = "0.7.1"
+source = "git+https://github.com/tokio-rs/axum.git?rev=3c7cf8184057964d7eb0db1aa48422a09cfeeedd#3c7cf8184057964d7eb0db1aa48422a09cfeeedd"
+dependencies = [
+ "async-trait",
+ "axum-core 0.4.0 (git+https://github.com/tokio-rs/axum.git?rev=3c7cf8184057964d7eb0db1aa48422a09cfeeedd)",
  "bytes",
  "futures-util",
  "http 1.0.0",
@@ -157,12 +189,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "axum-core"
+version = "0.4.0"
+source = "git+https://github.com/tokio-rs/axum.git?rev=3c7cf8184057964d7eb0db1aa48422a09cfeeedd#3c7cf8184057964d7eb0db1aa48422a09cfeeedd"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "futures-util",
+ "http 1.0.0",
+ "http-body 1.0.0",
+ "http-body-util",
+ "mime",
+ "pin-project-lite",
+ "rustversion",
+ "sync_wrapper",
+ "tower-layer",
+ "tower-service",
+]
+
+[[package]]
 name = "axum-prometheus"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f9e72192ebbdc3ce795e9c41291a990b4028d3e7419ee9267e567b046a472fa"
 dependencies = [
- "axum",
+ "axum 0.7.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "bytes",
  "futures",
  "futures-core",
@@ -1373,13 +1424,12 @@ dependencies = [
 name = "star-randsrv"
 version = "0.2.0"
 dependencies = [
- "axum",
+ "axum 0.7.1 (git+https://github.com/tokio-rs/axum.git?rev=3c7cf8184057964d7eb0db1aa48422a09cfeeedd)",
  "axum-prometheus",
  "base64 0.21.5",
  "calendar-duration",
  "clap",
  "curve25519-dalek",
- "http-body-util",
  "metrics-exporter-prometheus",
  "ppoprf",
  "rand",

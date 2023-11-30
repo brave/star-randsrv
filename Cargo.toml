@@ -7,7 +7,7 @@ license = "MPL-2.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.7.1"
+axum = { git = "https://github.com/tokio-rs/axum.git", rev = "3c7cf8184057964d7eb0db1aa48422a09cfeeedd" }
 axum-prometheus = "0.5.0"
 base64 = "0.21.5"
 calendar-duration = "1.0.0"
@@ -27,7 +27,6 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [dev-dependencies]
 curve25519-dalek = { version = "4.1.1", features = ["rand_core"] }
-http-body-util = "0.1.0"
 rand = { version = "0.8.5", features = ["getrandom"] }
 tower = "0.4.13"
 

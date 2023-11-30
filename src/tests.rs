@@ -1,13 +1,11 @@
 //! STAR Randomness web service tests
 
 use crate::state::OPRFServer;
-use axum::body::Body;
-use axum::body::Bytes;
+use axum::body::{to_bytes, Body, Bytes};
 use axum::http::Request;
 use axum::http::StatusCode;
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
-use http_body_util::BodyExt;
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -15,8 +13,14 @@ use time::OffsetDateTime;
 use tower::Service;
 use tower::ServiceExt;
 
+/// Test values
 const EPOCH: u8 = 12;
 const NEXT_EPOCH_TIME: &str = "2023-03-22T21:46:35Z";
+
+/// Maximum size of a response body to consider
+/// This is an approximate bound to allow for crate::MAX_POINTS.
+/// The exact size is 32 bytes per point, plus base64 and json overhead.
+const RESPONSE_MAX: usize = 48*1024;
 
 struct InstanceConfig {
     instance_name: String,
@@ -84,7 +88,7 @@ async fn welcome() {
 
     // Root should return some identifying text for friendliness.
     assert_eq!(response.status(), StatusCode::OK);
-    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap();
     let message = std::str::from_utf8(&body).unwrap();
     assert!(!message.is_empty());
 }
@@ -128,7 +132,7 @@ async fn info() {
     // Info should return the correct epoch, etc.
     let default_public_key = validate_info_response_and_return_public_key_b64(
         response.status(),
-        response.into_body().collect().await.unwrap().to_bytes(),
+        to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap()
     );
 
     let response = app
@@ -137,7 +141,7 @@ async fn info() {
         .unwrap();
     let specific_default_public_key = validate_info_response_and_return_public_key_b64(
         response.status(),
-        response.into_body().collect().await.unwrap().to_bytes(),
+        to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap(),
     );
     assert_eq!(default_public_key, specific_default_public_key);
 
@@ -147,7 +151,7 @@ async fn info() {
         .unwrap();
     let alternate_public_key = validate_info_response_and_return_public_key_b64(
         response.status(),
-        response.into_body().collect().await.unwrap().to_bytes(),
+        to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap(),
     );
     assert_ne!(default_public_key, alternate_public_key);
 
@@ -183,7 +187,7 @@ async fn randomness() {
     let response = app.call(request).await.unwrap();
     // Verify we receive a successful, well-formed response.
     assert_eq!(response.status(), StatusCode::OK);
-    let default_body = response.into_body().collect().await.unwrap().to_bytes();
+    let default_body = to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap();
     verify_randomness_body(&default_body, 1);
 
     let response = app
@@ -194,7 +198,7 @@ async fn randomness() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let specific_default_body = response.into_body().collect().await.unwrap().to_bytes();
+    let specific_default_body = to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap();
     assert_eq!(default_body, specific_default_body);
 
     let response = app
@@ -205,7 +209,7 @@ async fn randomness() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let alternate_body = response.into_body().collect().await.unwrap().to_bytes();
+    let alternate_body = to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap();
     verify_randomness_body(&alternate_body, 1);
     assert_ne!(default_body, alternate_body);
 
@@ -233,7 +237,7 @@ async fn epoch() {
     let request = test_request("/randomness", Some(payload));
     let response = test_app(None).oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap();
     verify_randomness_body(&body, points.len());
 
     // Verify earlier epochs are rejected.
@@ -314,7 +318,7 @@ async fn epoch_base_time() {
 
     // Info should return the correct epoch, etc.
     assert_eq!(response.status(), StatusCode::OK);
-    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap();
     assert!(!body.is_empty());
     let json: Value =
         serde_json::from_slice(body.as_ref()).expect("Could not parse response body as json");
@@ -366,7 +370,7 @@ async fn verify_batch(points: &[String]) {
     let request = test_request("/randomness", Some(payload));
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap();
     verify_randomness_body(&body, points.len());
 }
 
