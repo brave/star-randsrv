@@ -7,6 +7,7 @@ use axum::http::Request;
 use axum::http::StatusCode;
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use http_body_util::BodyExt;
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -83,8 +84,8 @@ async fn welcome() {
 
     // Root should return some identifying text for friendliness.
     assert_eq!(response.status(), StatusCode::OK);
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-    let message = std::str::from_utf8(body.as_ref()).unwrap();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let message = std::str::from_utf8(&body).unwrap();
     assert!(!message.is_empty());
 }
 
@@ -127,7 +128,7 @@ async fn info() {
     // Info should return the correct epoch, etc.
     let default_public_key = validate_info_response_and_return_public_key_b64(
         response.status(),
-        hyper::body::to_bytes(response.into_body()).await.unwrap(),
+        response.into_body().collect().await.unwrap().to_bytes(),
     );
 
     let response = app
@@ -136,7 +137,7 @@ async fn info() {
         .unwrap();
     let specific_default_public_key = validate_info_response_and_return_public_key_b64(
         response.status(),
-        hyper::body::to_bytes(response.into_body()).await.unwrap(),
+        response.into_body().collect().await.unwrap().to_bytes(),
     );
     assert_eq!(default_public_key, specific_default_public_key);
 
@@ -146,7 +147,7 @@ async fn info() {
         .unwrap();
     let alternate_public_key = validate_info_response_and_return_public_key_b64(
         response.status(),
-        hyper::body::to_bytes(response.into_body()).await.unwrap(),
+        response.into_body().collect().await.unwrap().to_bytes(),
     );
     assert_ne!(default_public_key, alternate_public_key);
 
@@ -182,7 +183,7 @@ async fn randomness() {
     let response = app.call(request).await.unwrap();
     // Verify we receive a successful, well-formed response.
     assert_eq!(response.status(), StatusCode::OK);
-    let default_body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let default_body = response.into_body().collect().await.unwrap().to_bytes();
     verify_randomness_body(&default_body, 1);
 
     let response = app
@@ -193,7 +194,7 @@ async fn randomness() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let specific_default_body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let specific_default_body = response.into_body().collect().await.unwrap().to_bytes();
     assert_eq!(default_body, specific_default_body);
 
     let response = app
@@ -204,7 +205,7 @@ async fn randomness() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let alternate_body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let alternate_body = response.into_body().collect().await.unwrap().to_bytes();
     verify_randomness_body(&alternate_body, 1);
     assert_ne!(default_body, alternate_body);
 
@@ -232,7 +233,7 @@ async fn epoch() {
     let request = test_request("/randomness", Some(payload));
     let response = test_app(None).oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
     verify_randomness_body(&body, points.len());
 
     // Verify earlier epochs are rejected.
@@ -313,7 +314,7 @@ async fn epoch_base_time() {
 
     // Info should return the correct epoch, etc.
     assert_eq!(response.status(), StatusCode::OK);
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
     assert!(!body.is_empty());
     let json: Value =
         serde_json::from_slice(body.as_ref()).expect("Could not parse response body as json");
@@ -365,7 +366,7 @@ async fn verify_batch(points: &[String]) {
     let request = test_request("/randomness", Some(payload));
     let response = app.oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
-    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let body = response.into_body().collect().await.unwrap().to_bytes();
     verify_randomness_body(&body, points.len());
 }
 
