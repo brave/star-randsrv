@@ -9,6 +9,7 @@ use rlimit::Resource;
 use state::{OPRFServer, OPRFState};
 use tikv_jemallocator::Jemalloc;
 use time::OffsetDateTime;
+use tokio::net::TcpListener;
 use tracing::{debug, info, metadata::LevelFilter};
 use tracing_subscriber::EnvFilter;
 use util::{assert_unique_names, parse_timestamp};
@@ -93,7 +94,7 @@ fn start_prometheus_server(metrics_handle: PrometheusHandle, addr: String) {
         let metrics_app =
             Router::new().route("/metrics", get(|| async move { metrics_handle.render() }));
         info!("Metrics server listening on {}", addr);
-        let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+        let listener = TcpListener::bind(addr).await.unwrap();
         axum::serve(listener, metrics_app)
             .await
             .unwrap();
@@ -167,8 +168,7 @@ async fn main() {
     }
 
     // Start the server
-    let addr = config.listen;
-    info!("Listening on {}", &addr);
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+    info!("Listening on {}", &config.listen);
+    let listener = TcpListener::bind(&config.listen).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
