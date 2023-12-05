@@ -9,6 +9,7 @@ use rlimit::Resource;
 use state::{OPRFServer, OPRFState};
 use tikv_jemallocator::Jemalloc;
 use time::OffsetDateTime;
+use tokio::net::TcpListener;
 use tracing::{debug, info, metadata::LevelFilter};
 use tracing_subscriber::EnvFilter;
 use util::{assert_unique_names, parse_timestamp};
@@ -88,14 +89,13 @@ fn app(oprf_state: OPRFState) -> Router {
         .layer(tower_http::trace::TraceLayer::new_for_http())
 }
 
-fn start_prometheus_server(metrics_handle: PrometheusHandle, listen: String) {
+fn start_prometheus_server(metrics_handle: PrometheusHandle, addr: String) {
     tokio::spawn(async move {
-        let addr = listen.parse().unwrap();
         let metrics_app =
             Router::new().route("/metrics", get(|| async move { metrics_handle.render() }));
-        info!("Metrics server listening on {}", &listen);
-        axum::Server::bind(&addr)
-            .serve(metrics_app.into_make_service())
+        info!("Metrics server listening on {}", addr);
+        let listener = TcpListener::bind(addr).await.unwrap();
+        axum::serve(listener, metrics_app)
             .await
             .unwrap();
     });
@@ -132,7 +132,6 @@ async fn main() {
     // Command line switches
     let config = Config::parse();
     debug!(?config, "config parsed");
-    let addr = config.listen.parse().unwrap();
 
     if config.increase_nofile_limit {
         increase_nofile_limit();
@@ -169,9 +168,7 @@ async fn main() {
     }
 
     // Start the server
-    info!("Listening on {}", &addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .unwrap();
+    info!("Listening on {}", &config.listen);
+    let listener = TcpListener::bind(&config.listen).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
 }
