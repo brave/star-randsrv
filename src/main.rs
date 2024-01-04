@@ -2,9 +2,9 @@
 
 use axum::{routing::get, routing::post, Router};
 use axum_prometheus::PrometheusMetricLayer;
+use axum_prometheus::metrics_exporter_prometheus::PrometheusHandle;
 use calendar_duration::CalendarDuration;
 use clap::Parser;
-use metrics_exporter_prometheus::PrometheusHandle;
 use rlimit::Resource;
 use state::{OPRFServer, OPRFState};
 use tikv_jemallocator::Jemalloc;
