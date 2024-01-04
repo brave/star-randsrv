@@ -1379,7 +1379,6 @@ dependencies = [
  "calendar-duration",
  "clap",
  "curve25519-dalek",
- "metrics-exporter-prometheus",
  "ppoprf",
  "rand",
  "rlimit",
