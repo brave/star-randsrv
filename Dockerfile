@@ -2,12 +2,12 @@
 # with musl. We use debian slim so we can use glibc for best performance.
 
 # Start by building the nitriding proxy daemon.
-FROM public.ecr.aws/docker/library/golang:1.21.1-bookworm as go-builder
+FROM public.ecr.aws/docker/library/golang:1.21.6-bookworm as go-builder
 
 RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.4.2
 
 # Build the web server application itself.
-FROM public.ecr.aws/docker/library/rust:1.72.1-slim-bookworm as rust-builder
+FROM public.ecr.aws/docker/library/rust:1.75.0-slim-bookworm as rust-builder
 
 RUN apt update && apt install -y build-essential
 
@@ -19,7 +19,7 @@ COPY src src/
 RUN cargo build --locked --release
 
 # Set up the run-time environment
-FROM public.ecr.aws/docker/library/debian:12.1-slim
+FROM public.ecr.aws/docker/library/debian:12.4-slim
 
 RUN apt update && apt install -y ca-certificates
 

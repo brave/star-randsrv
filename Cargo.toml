@@ -7,27 +7,25 @@ license = "MPL-2.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.6.20"
-axum-prometheus = "0.4.0"
-base64 = "0.21.4"
+axum = "0.7.4"
+axum-prometheus = "0.5.0"
+base64 = "0.21.7"
 calendar-duration = "1.0.0"
-clap = { version = "4.4.6", features = ["derive"] }
-metrics-exporter-prometheus = "0.12.1"
+clap = { version = "4.4.18", features = ["derive"] }
 ppoprf = "0.3.1"
 rlimit = "0.10"
-serde = "1.0.188"
-serde_json = "1.0.107"
-thiserror = "1.0.49"
+serde = "1.0.195"
+serde_json = "1.0.108"
+thiserror = "1.0.56"
 tikv-jemallocator = "0.5"
-time = { version = "0.3.29", features = ["formatting", "parsing"] }
-tokio = { version = "1.32.0", features = ["full"] }
-tower-http = { version = "0.4.4", features = ["trace"] }
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
+time = { version = "0.3.31", features = ["formatting", "parsing"] }
+tokio = { version = "1.35.1", features = ["full"] }
+tower-http = { version = "0.5.1", features = ["trace"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
 [dev-dependencies]
 curve25519-dalek = { version = "4.1.1", features = ["rand_core"] }
-hyper = "0.14.27"
 rand = { version = "0.8.5", features = ["getrandom"] }
 tower = "0.4.13"
 
