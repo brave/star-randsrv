@@ -20,7 +20,7 @@ thiserror = "1.0.57"
 tikv-jemallocator = "0.5"
 time = { version = "0.3.31", features = ["formatting", "parsing"] }
 tokio = { version = "1.36.0", features = ["full"] }
-tower-http = { version = "0.5.1", features = ["trace"] }
+tower-http = { version = "0.5.2", features = ["trace"] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 
