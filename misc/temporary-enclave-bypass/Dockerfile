@@ -1,6 +1,6 @@
 # Build the web server application itself.
 # Use the -alpine variant so it will run in a alpine-based container.
-FROM public.ecr.aws/docker/library/rust:1.76.0-alpine as rust-builder
+FROM public.ecr.aws/docker/library/rust:1.76.0-alpine@sha256:def35884ff7e1e4b0eae050cbb03ca0900d70d1acbcba1d0e428147ab6786de2 as rust-builder
 # Base image may not support C linkage.
 RUN apk add musl-dev
 
@@ -13,7 +13,7 @@ RUN cargo build --locked --release
 
 RUN cargo install vsock-relay
 
-FROM amazonlinux:2.0.20240131.0
+FROM amazonlinux:2.0.20240131.0@sha256:90e48c53055fc5943819e6a75e0227ecd43384ba3dbe949030f164645c485518
 
 RUN echo "timeout=60.0" >> /etc/yum.conf
 RUN amazon-linux-extras install aws-nitro-enclaves-cli nginx1 -y && \
