@@ -11,7 +11,7 @@ axum = "0.7.4"
 axum-prometheus = "0.6.1"
 base64 = "0.21.7"
 calendar-duration = "1.0.0"
-clap = { version = "4.5.1", features = ["derive"] }
+clap = { version = "4.5.3", features = ["derive"] }
 ppoprf = "0.3.1"
 rlimit = "0.10"
 serde = "1.0.197"
