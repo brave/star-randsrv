@@ -1,6 +1,6 @@
 # Build the web server application itself.
 # Use the -alpine variant so it will run in a alpine-based container.
-FROM public.ecr.aws/docker/library/rust:1.76.0-alpine@sha256:ba706e9ee0c6ba7fd828131b4302ed46446d9313fc3c1d82897350b94c6b1084 as rust-builder
+FROM public.ecr.aws/docker/library/rust:1.76.0-alpine@sha256:e594a9705c4514c0e0b5ed2409f7ec34f20af09a33d242524281247b74196c43 as rust-builder
 # Base image may not support C linkage.
 RUN apk add musl-dev
 
