@@ -14,7 +14,7 @@ calendar-duration = "1.0.0"
 clap = { version = "4.5.4", features = ["derive"] }
 ppoprf = "0.3.1"
 rlimit = "0.10"
-serde = "1.0.197"
+serde = "1.0.200"
 serde_json = "1.0.115"
 thiserror = "1.0.58"
 tikv-jemallocator = "0.5"
