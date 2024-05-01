@@ -15,7 +15,7 @@ clap = { version = "4.5.4", features = ["derive"] }
 ppoprf = "0.3.1"
 rlimit = "0.10"
 serde = "1.0.197"
-serde_json = "1.0.115"
+serde_json = "1.0.116"
 thiserror = "1.0.58"
 tikv-jemallocator = "0.5"
 time = { version = "0.3.31", features = ["formatting", "parsing"] }
