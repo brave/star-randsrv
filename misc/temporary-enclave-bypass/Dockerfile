@@ -13,7 +13,7 @@ RUN cargo build --locked --release
 
 RUN cargo install vsock-relay
 
-FROM amazonlinux:2.0.20240529.0@sha256:cb70fdaf99571444d0059810e27b0c6a192a5e940a77184fa95df00a1e88dac3
+FROM amazonlinux:2.0.20240610.1@sha256:becb90c0dbcd559796b39091158e259f0621f7b2c7a753a888b8a50cbec749c5
 
 RUN echo "timeout=60.0" >> /etc/yum.conf
 RUN amazon-linux-extras install aws-nitro-enclaves-cli nginx1 -y && \
