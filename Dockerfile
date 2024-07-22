@@ -4,10 +4,17 @@
 # Start by building the nitriding proxy daemon.
 FROM public.ecr.aws/docker/library/golang:1.22.5-bookworm@sha256:6c2780255bb7b881e904e303be0d7a079054160b2ce1efde446693c0850a39ad as go-builder
 
-RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.4.2
+RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@971fa775736cc2188999ba6694386ce6c9e80f89
 
 # Build the web server application itself.
 FROM public.ecr.aws/docker/library/rust:1.79.0-bookworm@sha256:4c45f61ebe054560190f232b7d883f174ff287e1a0972c8f6d7ab88da0188870 as rust-builder
+
+WORKDIR /
+
+RUN git clone https://github.com/djandries/sta-rs
+WORKDIR /sta-rs
+RUN git fetch origin key-sync
+RUN git checkout key-sync 
 
 WORKDIR /src/
 COPY Cargo.toml Cargo.lock ./
