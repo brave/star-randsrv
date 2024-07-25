@@ -17,8 +17,8 @@ echo "[sh] Started star-randsrv."
 sleep 5
 
 nitriding \
-  -fqdn "star-randsrv.bsg.brave.software" \
-  -fqdn-leader "leader-internal-service.star-randsrv-dev.svc.cluster.local:9443" \
+  -fqdn "star-randsrv.bsg.bravesoftware.com" \
+  -fqdn-leader "leader-internal-service.star-randsrv-staging.svc.cluster.local:9443" \
   -appurl "https://github.com/brave/star-randsrv" \
   -appwebsrv "http://127.0.0.1:8080" \
   -vsock-ext \
