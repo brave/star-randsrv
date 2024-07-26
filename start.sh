@@ -23,6 +23,7 @@ nitriding \
   -appwebsrv "http://127.0.0.1:8080" \
   -vsock-ext \
   -disable-keep-alives \
+  -prometheus-port 9090 \
   -host-ip-provider-port 6161 \
   -ext-priv-port 9443 \
   -intport 8081 &
