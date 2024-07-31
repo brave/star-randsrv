@@ -17,7 +17,7 @@ COPY src src/
 RUN cargo build --locked --release
 
 # Set up the run-time environment
-FROM public.ecr.aws/docker/library/debian:12.5-slim@sha256:67f3931ad8cb1967beec602d8c0506af1e37e8d73c2a0b38b181ec5d8560d395
+FROM public.ecr.aws/docker/library/debian:12.6-slim@sha256:5f7d5664eae4a192c2d2d6cb67fc3f3c7891a8722cd2903cc35aa649a12b0c8d
 
 RUN apt update && apt install -y ca-certificates
 
