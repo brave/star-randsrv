@@ -75,3 +75,13 @@ Below is an example of the server's response:
 
 Note that the array's ordering matters.  The point at index *n* of the server's
 response corresponds to the point at index *n* of the client's request.
+
+Reproducible builds
+----
+Executing `make eif` will render a reproducible Nitro Enclave image. The ID of the image
+can be compared the with image ID in the attestation document served at https://star-randsrv.bsg.brave.com/enclave/attestation
+for auditing purposes (See [nitriding-daemon](https://github.com/brave/nitriding-daemon) for details).
+Currently, there is an outstanding kernel leak bug within the stock kernel packaged
+with the aws-nitro-enclaves-cli. A [custom-built kernel](https://github.com/brave-experiments/nitro-enclave-kernel) must be
+used when building the image.
+
