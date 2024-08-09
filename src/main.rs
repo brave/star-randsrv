@@ -1,8 +1,11 @@
 //! STAR Randomness web service
 
-use axum::{routing::get, routing::post, Router};
-use axum_prometheus::PrometheusMetricLayer;
+use axum::{
+    routing::{get, post, put},
+    Router,
+};
 use axum_prometheus::metrics_exporter_prometheus::PrometheusHandle;
+use axum_prometheus::PrometheusMetricLayer;
 use calendar_duration::CalendarDuration;
 use clap::Parser;
 use rlimit::Resource;
@@ -18,6 +21,8 @@ use util::{assert_unique_names, parse_timestamp};
 static GLOBAL: Jemalloc = Jemalloc;
 
 mod handler;
+mod instance;
+mod result;
 mod state;
 mod util;
 
@@ -62,12 +67,19 @@ pub struct Config {
     /// Enable prometheus metric reporting and listen on specified address.
     #[arg(long)]
     prometheus_listen: Option<String>,
+    /// Enable key synchronization via Nitriding to allow horizontal scaling between
+    /// server replicas.
+    #[arg(long, default_value_t = false)]
+    enclave_key_sync: bool,
+    /// Internal port of Nitriding server within enclave.
+    #[arg(long)]
+    nitriding_internal_port: Option<u16>,
 }
 
 /// Initialize an axum::Router for our web service
 /// Having this as a separate function makes testing easier.
-fn app(oprf_state: OPRFState) -> Router {
-    Router::new()
+fn app(config: &Config, oprf_state: OPRFState) -> Router {
+    let mut router = Router::new()
         // Friendly default route to identify the site
         .route("/", get(|| async { "STAR randomness server\n" }))
         // Endpoints for all instances
@@ -82,8 +94,14 @@ fn app(oprf_state: OPRFState) -> Router {
         .route("/instances", get(handler::list_instances))
         // Endpoints for default instance
         .route("/randomness", post(handler::default_instance_randomness))
-        .route("/info", get(handler::default_instance_info))
-        // Attach shared state
+        .route("/info", get(handler::default_instance_info));
+    if config.enclave_key_sync {
+        router = router
+            .route("/enclave/state", put(handler::set_ppoprf_private_key))
+            .route("/enclave/state", get(handler::get_ppoprf_private_key));
+    }
+    // Attach shared state
+    router
         .with_state(oprf_state)
         // Logging must come after active routes
         .layer(tower_http::trace::TraceLayer::new_for_http())
@@ -95,9 +113,7 @@ fn start_prometheus_server(metrics_handle: PrometheusHandle, addr: String) {
             Router::new().route("/metrics", get(|| async move { metrics_handle.render() }));
         info!("Metrics server listening on {}", addr);
         let listener = TcpListener::bind(addr).await.unwrap();
-        axum::serve(listener, metrics_app)
-            .await
-            .unwrap();
+        axum::serve(listener, metrics_app).await.unwrap();
     });
 }
 
@@ -150,6 +166,10 @@ async fn main() {
         config.instance_names.len() == config.epoch_durations.len(),
         "instance-name switch count must match epoch-seconds switch count"
     );
+    assert!(
+        !config.enclave_key_sync || config.nitriding_internal_port.is_some(),
+        "nitriding internal port should be defined if key sync is enabled"
+    );
 
     let metric_layer = config.prometheus_listen.as_ref().map(|listen| {
         let (layer, handle) = PrometheusMetricLayer::pair();
@@ -157,12 +177,11 @@ async fn main() {
         layer
     });
 
-    let oprf_state = OPRFServer::new(&config);
-    oprf_state.start_background_tasks(&config);
+    let oprf_state = OPRFServer::new(config.clone()).await;
 
     // Set up routes and middleware
     info!("initializing routes...");
-    let mut app = app(oprf_state);
+    let mut app = app(&config, oprf_state);
     if let Some(metric_layer) = metric_layer {
         app = app.layer(metric_layer);
     }
