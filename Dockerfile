@@ -7,7 +7,7 @@ FROM public.ecr.aws/docker/library/golang:1.22.6-bookworm@sha256:39b7e6ebaca464d
 RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.4.2
 
 # Build the web server application itself.
-FROM public.ecr.aws/docker/library/rust:1.80.0-bookworm@sha256:fcbb950e8fa0de7f8ada015ea78e97ad09fcc4120bf23485664e418e0ec5087b as rust-builder
+FROM public.ecr.aws/docker/library/rust:1.80.1-bookworm@sha256:29fe4376919e25b7587a1063d7b521d9db735fc137d3cf30ae41eb326d209471 as rust-builder
 
 WORKDIR /src/
 COPY Cargo.toml Cargo.lock ./
