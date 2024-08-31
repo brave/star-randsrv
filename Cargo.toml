@@ -8,7 +8,7 @@ edition = "2021"
 
 [dependencies]
 axum = "0.7.5"
-axum-prometheus = "0.6.1"
+axum-prometheus = "0.7.0"
 base64 = "0.22.1"
 calendar-duration = "1.0.0"
 clap = { version = "4.5.4", features = ["derive"] }
