@@ -1,6 +1,6 @@
 [package]
 name = "star-randsrv"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Ralph Giles <rgiles@brave.com>"]
 description = "STAR randomness webservice"
 license = "MPL-2.0"
@@ -10,9 +10,11 @@ edition = "2021"
 axum = "0.7.5"
 axum-prometheus = "0.6.1"
 base64 = "0.22.1"
+bincode = "1.3.3"
 calendar-duration = "1.0.0"
 clap = { version = "4.5.4", features = ["derive"] }
-ppoprf = "0.3.1"
+ppoprf = { version = "0.4.0", features = ["key-sync"], path = "../sta-rs/ppoprf" }
+reqwest = { version = "0.12.5", default-features = false, features = ["charset", "macos-system-configuration"] }
 rlimit = "0.10"
 serde = "1.0.200"
 serde_json = "1.0.115"
