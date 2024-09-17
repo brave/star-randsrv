@@ -4,7 +4,7 @@
 # Start by building the nitriding proxy daemon.
 FROM public.ecr.aws/docker/library/golang:1.23.0-bookworm@sha256:31dc846dd1bcca84d2fa231bcd16c09ff271bcc1a5ae2c48ff10f13b039688f3 as go-builder
 
-RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@8b1cc70fdb50557eeb29a73d39086d60c712e3c1
+RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@12da224934f60eacf0a18f40c1d2f4c82120d132
 
 # Build the web server application itself.
 FROM public.ecr.aws/docker/library/rust:1.80.1-bookworm@sha256:29fe4376919e25b7587a1063d7b521d9db735fc137d3cf30ae41eb326d209471 as rust-builder
