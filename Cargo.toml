@@ -12,7 +12,7 @@ axum-prometheus = "0.7.0"
 base64 = "0.22.1"
 calendar-duration = "1.0.0"
 clap = { version = "4.5.4", features = ["derive"] }
-ppoprf = "0.3.1"
+ppoprf = "0.4.0"
 rlimit = "0.10"
 serde = "1.0.200"
 serde_json = "1.0.115"
