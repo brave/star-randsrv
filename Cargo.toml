@@ -27,7 +27,7 @@ tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 [dev-dependencies]
 curve25519-dalek = { version = "4.1.2", features = ["rand_core"] }
 rand = { version = "0.8.5", features = ["getrandom"] }
-tower = "0.4.13"
+tower = "0.5.0"
 
 [profile.release]
 lto = "thin"
