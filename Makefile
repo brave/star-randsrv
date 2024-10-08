@@ -1,8 +1,8 @@
 prog := star-randsrv
 version := $(shell git describe --tag --dirty)
 image_tag := $(prog):$(version)
-image_tar := $(prog)-$(version)-kaniko.tar
-image_eif := $(image_tar:%.tar=%.eif)
+image_tar := $(prog)-$(version).tar.gz
+image_eif := $(image_tar:%.tar.gz=%.eif)
 
 RUST_DEPS := $(wildcard Cargo.* src/*.rs)
 
@@ -29,24 +29,20 @@ clean:
 eif: $(image_eif)
 
 $(image_eif): $(image_tar)
-	docker load -i $<
+	gunzip -c $(image_tar) | docker load
 	nitro-cli build-enclave --docker-uri $(image_tag) --output-file $@
 
 image: $(image_tar)
 
-$(image_tar): Dockerfile $(RUST_DEPS)
-	docker run -v $$PWD:/workspace gcr.io/kaniko-project/executor:v1.9.2 \
-		--context dir:///workspace/ \
-		--reproducible \
-		--no-push \
-		--tarPath $(image_tar) \
-		--destination $(image_tag) \
-		--custom-platform linux/amd64
+$(image_tar): default.nix $(RUST_DEPS)
+	nix-build -v --arg tag \"$(version)\"
+	rm -f $(image_tar)
+	cp -L ./result $(image_tar)
 
 run: $(image_eif)
 	$(eval ENCLAVE_ID=$(shell nitro-cli describe-enclaves | jq -r '.[0].EnclaveID'))
 	@if [ "$(ENCLAVE_ID)" != "null" ]; then nitro-cli terminate-enclave --enclave-id $(ENCLAVE_ID); fi
 	@echo "Starting enclave."
-	nitro-cli run-enclave --cpu-count 2 --memory 512 --eif-path $(image_eif) --debug-mode
+	nitro-cli run-enclave --cpu-count 4 --memory 2048 --eif-path $(image_eif) --debug-mode
 	@echo "Showing enclave logs."
 	nitro-cli console --enclave-id $$(nitro-cli describe-enclaves | jq -r '.[0].EnclaveID')
