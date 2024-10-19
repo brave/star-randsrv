@@ -1,3 +1,5 @@
 star-randsrv
 target
 include
+result
+*.tar.gz
