@@ -2,7 +2,7 @@
 # with musl. We use debian slim so we can use glibc for best performance.
 
 # Start by building the nitriding proxy daemon.
-FROM public.ecr.aws/docker/library/golang:1.23.0-bookworm@sha256:31dc846dd1bcca84d2fa231bcd16c09ff271bcc1a5ae2c48ff10f13b039688f3 as go-builder
+FROM public.ecr.aws/docker/library/golang:1.24.2-bookworm@sha256:00eccd446e023d3cd9566c25a6e6a02b90db3e1e0bbe26a48fc29cd96e800901 as go-builder
 
 RUN CGO_ENABLED=0 go install -trimpath -ldflags="-s -w" -buildvcs=false github.com/brave/nitriding-daemon@v1.4.2
 
