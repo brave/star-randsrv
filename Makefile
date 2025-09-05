@@ -16,6 +16,7 @@ test:
 
 lint:
 	cargo clippy
+	cargo install cargo-audit
 	cargo audit
 
 target/release/$(prog): Cargo.toml src/*.rs
