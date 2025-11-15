@@ -373,14 +373,15 @@ dependencies = [
 
 [[package]]
 name = "curve25519-dalek"
-version = "4.1.3"
+version = "4.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97fb8b7c4503de7d6ae7b42ab72a5a59857b4c937ec27a3d4539dba95b5ab2be"
+checksum = "0a677b8922c94e01bdbb12126b0bc852f00447528dee1782229af9c720c3f348"
 dependencies = [
  "cfg-if",
  "cpufeatures",
  "curve25519-dalek-derive",
  "fiat-crypto",
+ "platforms",
  "rand_core",
  "rustc_version",
  "serde",
@@ -912,6 +913,12 @@ name = "pin-utils"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+
+[[package]]
+name = "platforms"
+version = "3.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f21de1852251c849a53467e0ce8b97cca9d11fd4efa3930145c5d5f02f24447"
 
 [[package]]
 name = "portable-atomic"
