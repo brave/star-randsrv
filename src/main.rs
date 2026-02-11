@@ -1,8 +1,8 @@
 //! STAR Randomness web service
 
 use axum::{routing::get, routing::post, Router};
-use axum_prometheus::PrometheusMetricLayer;
 use axum_prometheus::metrics_exporter_prometheus::PrometheusHandle;
+use axum_prometheus::PrometheusMetricLayer;
 use calendar_duration::CalendarDuration;
 use clap::Parser;
 use rlimit::Resource;
@@ -95,9 +95,7 @@ fn start_prometheus_server(metrics_handle: PrometheusHandle, addr: String) {
             Router::new().route("/metrics", get(|| async move { metrics_handle.render() }));
         info!("Metrics server listening on {}", addr);
         let listener = TcpListener::bind(addr).await.unwrap();
-        axum::serve(listener, metrics_app)
-            .await
-            .unwrap();
+        axum::serve(listener, metrics_app).await.unwrap();
     });
 }
 

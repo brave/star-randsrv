@@ -24,7 +24,7 @@ pub struct RandomnessRequest {
 /// Response structure for the randomness endpoint
 #[derive(Serialize, Debug)]
 pub struct RandomnessResponse {
-    /// Resulting points from the OPRF valuation
+    /// Resulting points from the OPRF evaluation
     /// Should be base64-encoded, compressed points in one-to-one
     /// correspondence with the request points array.
     points: Vec<String>,
@@ -38,6 +38,7 @@ pub struct RandomnessResponse {
 #[serde(rename_all = "camelCase")]
 pub struct InfoResponse {
     /// ServerPublicKey used to verify zero-knowledge proof
+    #[serde(rename = "publicKeyV2")]
     public_key: String,
     /// Currently active randomness epoch
     current_epoch: u8,
@@ -87,6 +88,8 @@ pub enum Error {
     Base64(#[from] base64::DecodeError),
     #[error("PPOPRF error: {0}")]
     Oprf(#[from] ppoprf::PPRFError),
+    #[error("Serialization error")]
+    Serialization,
 }
 
 /// thiserror doesn't generate a `From` impl without
@@ -106,8 +109,8 @@ impl axum::response::IntoResponse for Error {
     fn into_response(self) -> axum::response::Response {
         let code = match self {
             Error::InstanceNotFound(_) => StatusCode::NOT_FOUND,
-            // This indicates internal failure.
-            Error::LockFailure => StatusCode::INTERNAL_SERVER_ERROR,
+            // These indicate internal failure.
+            Error::LockFailure | Error::Serialization => StatusCode::INTERNAL_SERVER_ERROR,
             // Other cases are the client's fault.
             _ => StatusCode::BAD_REQUEST,
         };
@@ -189,7 +192,8 @@ pub async fn specific_instance_randomness(
 async fn info(state: OPRFState, instance_name: String) -> Result<Json<InfoResponse>> {
     debug!("recv: info request");
     let state = get_server_from_state(&state, &instance_name)?;
-    let public_key = state.server.get_public_key().serialize_to_bincode()?;
+    let public_key =
+        postcard::to_stdvec(&state.server.get_public_key()).map_err(|_| Error::Serialization)?;
     let public_key = BASE64.encode(public_key);
     let response = InfoResponse {
         current_epoch: state.epoch,
