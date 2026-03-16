@@ -20,7 +20,7 @@ const NEXT_EPOCH_TIME: &str = "2023-03-22T21:46:35Z";
 /// Maximum size of a response body to consider
 /// This is an approximate bound to allow for crate::MAX_POINTS.
 /// The exact size is 32 bytes per point, plus base64 and json overhead.
-const RESPONSE_MAX: usize = 48*1024;
+const RESPONSE_MAX: usize = 48 * 1024;
 
 struct InstanceConfig {
     instance_name: String,
@@ -106,11 +106,11 @@ fn validate_info_response_and_return_public_key_b64(status: StatusCode, body: By
     assert!(json["maxPoints"].is_number());
     let max_points = json["maxPoints"].as_u64().unwrap();
     assert_eq!(max_points, crate::MAX_POINTS as u64);
-    assert!(json["publicKey"].is_string());
-    let b64key = json["publicKey"].as_str().unwrap();
+    assert!(json["publicKeyV2"].is_string());
+    let b64key = json["publicKeyV2"].as_str().unwrap();
     let binkey = BASE64.decode(b64key).unwrap();
-    let _ = ppoprf::ppoprf::ServerPublicKey::load_from_bincode(&binkey)
-        .expect("Could not parse server public key");
+    let _: ppoprf::ppoprf::ServerPublicKey =
+        postcard::from_bytes(&binkey).expect("Could not parse server public key");
     b64key.to_string()
 }
 
@@ -132,7 +132,7 @@ async fn info() {
     // Info should return the correct epoch, etc.
     let default_public_key = validate_info_response_and_return_public_key_b64(
         response.status(),
-        to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap()
+        to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap(),
     );
 
     let response = app
