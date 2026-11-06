@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use time::OffsetDateTime;
 use tower::Service;
-use tower::ServiceExt;
+use tower::util::ServiceExt;
 
 /// Test values
 const EPOCH: u8 = 12;
