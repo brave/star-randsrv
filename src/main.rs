@@ -11,6 +11,7 @@ use state::{OPRFServer, OPRFState};
 use tikv_jemallocator::Jemalloc;
 use time::OffsetDateTime;
 use tokio::net::TcpListener;
+use tokio::signal;
 use tracing::{info, metadata::LevelFilter};
 use tracing_subscriber::EnvFilter;
 use util::{assert_unique_names, assert_valid_static_keys, parse_timestamp};
@@ -33,7 +34,7 @@ const MAX_POINTS: usize = 1024;
 #[command(author, version, about, long_about = None)]
 pub struct Config {
     /// Host and port to listen for http connections
-    #[arg(long, default_value = "127.0.0.1:8080")]
+    #[arg(long, default_value = "0.0.0.0:8080")]
     listen: String,
     /// Name of OPRF instance contained in server. Multiple instances may be defined
     /// by defining this switch multiple times. The first defined instance will
@@ -43,7 +44,7 @@ pub struct Config {
     /// Duration of each randomness epoch. This switch may be defined multiple times
     /// to set the epoch length for each respective instance, if multiple instances
     /// are defined.
-    #[arg(long = "epoch-duration", value_name = "Duration string i.e. 1mon5h2s", default_values = ["5s"])]
+    #[arg(long = "epoch-duration", value_name = "Duration string i.e. 1mon5h2s", default_values = ["1m"])]
     epoch_durations: Vec<CalendarDuration>,
     /// First epoch tag to make available
     #[arg(long, default_value_t = 0)]
@@ -188,5 +189,33 @@ async fn main() {
     // Start the server
     info!("Listening on {}", &config.listen);
     let listener = TcpListener::bind(&config.listen).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    info!("Shutdown signal received, shutting down gracefully");
 }
