@@ -12,8 +12,8 @@ use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::time::Duration;
 use time::OffsetDateTime;
-use tower::Service;
 use tower::util::ServiceExt;
+use tower::Service;
 
 /// Test values
 const EPOCH: u8 = 12;
@@ -22,7 +22,7 @@ const NEXT_EPOCH_TIME: &str = "2023-03-22T21:46:35Z";
 /// Maximum size of a response body to consider
 /// This is an approximate bound to allow for crate::MAX_POINTS.
 /// The exact size is 32 bytes per point, plus base64 and json overhead.
-const RESPONSE_MAX: usize = 48*1024;
+const RESPONSE_MAX: usize = 48 * 1024;
 
 struct InstanceConfig {
     instance_name: String,
@@ -136,7 +136,7 @@ async fn info() {
     // Info should return the correct epoch, etc.
     let default_public_key = validate_info_response_and_return_public_key_b64(
         response.status(),
-        to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap()
+        to_bytes(response.into_body(), RESPONSE_MAX).await.unwrap(),
     );
 
     let response = app
@@ -476,7 +476,11 @@ fn next_epoch_time(oprf_state: &OPRFServer, instance_name: &str) -> Option<Strin
 }
 
 /// Wait for `epoch_loop` to set `next_epoch_time` to a value other than `previous`
-async fn wait_for_epoch_loop(oprf_state: &OPRFServer, instance_name: &str, previous: Option<String>) {
+async fn wait_for_epoch_loop(
+    oprf_state: &OPRFServer,
+    instance_name: &str,
+    previous: Option<String>,
+) {
     let pause = Duration::from_millis(10);
     let mut tries = 0;
     loop {
@@ -503,7 +507,10 @@ async fn static_keys_round_trip() {
         wait_for_epoch_loop(&first, name, None).await;
         wait_for_epoch_loop(&second, name, None).await;
         assert_eq!(public_key(&first, name), public_key(&second, name));
-        assert_eq!(evaluate(&first, name, &point), evaluate(&second, name, &point));
+        assert_eq!(
+            evaluate(&first, name, &point),
+            evaluate(&second, name, &point)
+        );
     }
     assert_ne!(
         evaluate(&first, "main", &point),
@@ -529,9 +536,15 @@ async fn random_keys_differ_between_servers() {
         wait_for_epoch_loop(&first, name, None).await;
         wait_for_epoch_loop(&second, name, None).await;
         // epoch_loop should not replace the random keys at startup.
-        assert_eq!(initial, (public_key(&first, name), public_key(&second, name)));
+        assert_eq!(
+            initial,
+            (public_key(&first, name), public_key(&second, name))
+        );
         assert_ne!(public_key(&first, name), public_key(&second, name));
-        assert_ne!(evaluate(&first, name, &point), evaluate(&second, name, &point));
+        assert_ne!(
+            evaluate(&first, name, &point),
+            evaluate(&second, name, &point)
+        );
     }
 }
 
