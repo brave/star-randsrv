@@ -1,11 +1,13 @@
 //! STAR Randomness web service tests
 
 use crate::state::OPRFServer;
+use crate::util::decode_static_key;
 use axum::body::{to_bytes, Body, Bytes};
 use axum::http::Request;
 use axum::http::StatusCode;
 use base64::prelude::{Engine as _, BASE64_STANDARD as BASE64};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+use ppoprf::ppoprf::Point;
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -45,6 +47,8 @@ fn test_app(instance_configs: Option<Vec<InstanceConfig>>) -> crate::Router {
         epoch_base_time: None,
         increase_nofile_limit: false,
         prometheus_listen: None,
+        generate_static_keys: false,
+        static_keys: Vec::new(),
         instance_names: instance_configs
             .into_iter()
             .map(|c| c.instance_name)
@@ -278,6 +282,8 @@ async fn epoch_base_time() {
         epoch_base_time: Some(now - delay),
         increase_nofile_limit: false,
         prometheus_listen: None,
+        generate_static_keys: false,
+        static_keys: Vec::new(),
         instance_names: vec!["main".to_string()],
     };
     // Verify test parameters are compatible with the
@@ -399,4 +405,164 @@ async fn max_points() {
     let request = test_request("/randomness", Some(payload));
     let response = test_app(None).oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+fn static_keys_config(
+    static_keys: Vec<Vec<u8>>,
+    epoch_duration: &str,
+    last_epoch: u8,
+) -> crate::Config {
+    crate::Config {
+        listen: "127.0.0.1:8081".to_string(),
+        epoch_durations: vec![epoch_duration.into(), epoch_duration.into()],
+        first_epoch: EPOCH,
+        last_epoch,
+        epoch_base_time: None,
+        increase_nofile_limit: false,
+        prometheus_listen: None,
+        generate_static_keys: false,
+        static_keys,
+        instance_names: vec!["main".to_string(), "alternate".to_string()],
+    }
+}
+
+/// Generate static keys in instance name order, as --static-key switches would be
+fn generate_static_keys() -> Vec<Vec<u8>> {
+    let config = static_keys_config(Vec::new(), "1h", EPOCH * 2);
+    let mut keys = OPRFServer::new(&config).get_private_keys();
+    assert_eq!(keys.len(), config.instance_names.len());
+    config
+        .instance_names
+        .iter()
+        .map(|name| keys.remove(name).unwrap())
+        .collect()
+}
+
+fn public_key(oprf_state: &OPRFServer, instance_name: &str) -> Vec<u8> {
+    oprf_state
+        .instances
+        .get(instance_name)
+        .unwrap()
+        .read()
+        .unwrap()
+        .server
+        .get_public_key()
+        .serialize_to_bincode()
+        .unwrap()
+}
+
+fn evaluate(oprf_state: &OPRFServer, instance_name: &str, point: &Point) -> Point {
+    oprf_state
+        .instances
+        .get(instance_name)
+        .unwrap()
+        .read()
+        .unwrap()
+        .server
+        .eval(point, EPOCH, false)
+        .unwrap()
+        .output
+}
+
+fn next_epoch_time(oprf_state: &OPRFServer, instance_name: &str) -> Option<String> {
+    oprf_state
+        .instances
+        .get(instance_name)
+        .unwrap()
+        .read()
+        .unwrap()
+        .next_epoch_time
+        .clone()
+}
+
+/// Wait for `epoch_loop` to set `next_epoch_time` to a value other than `previous`
+async fn wait_for_epoch_loop(oprf_state: &OPRFServer, instance_name: &str, previous: Option<String>) {
+    let pause = Duration::from_millis(10);
+    let mut tries = 0;
+    loop {
+        let current = next_epoch_time(oprf_state, instance_name);
+        if current.is_some() && current != previous {
+            return;
+        }
+        assert!(tries < 300, "timeout waiting for epoch_loop");
+        tokio::time::sleep(pause).await;
+        tries += 1;
+    }
+}
+
+#[tokio::test]
+async fn static_keys_round_trip() {
+    let config = static_keys_config(generate_static_keys(), "1h", EPOCH * 2);
+    let first = OPRFServer::new(&config);
+    let second = OPRFServer::new(&config);
+    first.start_background_tasks(&config);
+    second.start_background_tasks(&config);
+
+    let point = Point::from(RistrettoPoint::random(&mut OsRng));
+    for name in &config.instance_names {
+        wait_for_epoch_loop(&first, name, None).await;
+        wait_for_epoch_loop(&second, name, None).await;
+        assert_eq!(public_key(&first, name), public_key(&second, name));
+        assert_eq!(evaluate(&first, name, &point), evaluate(&second, name, &point));
+    }
+    assert_ne!(
+        evaluate(&first, "main", &point),
+        evaluate(&first, "alternate", &point)
+    );
+}
+
+#[tokio::test]
+async fn random_keys_differ_between_servers() {
+    let config = static_keys_config(Vec::new(), "1h", EPOCH * 2);
+    let first = OPRFServer::new(&config);
+    let second = OPRFServer::new(&config);
+    let initial_public_keys: Vec<_> = config
+        .instance_names
+        .iter()
+        .map(|name| (public_key(&first, name), public_key(&second, name)))
+        .collect();
+    first.start_background_tasks(&config);
+    second.start_background_tasks(&config);
+
+    let point = Point::from(RistrettoPoint::random(&mut OsRng));
+    for (name, initial) in config.instance_names.iter().zip(initial_public_keys) {
+        wait_for_epoch_loop(&first, name, None).await;
+        wait_for_epoch_loop(&second, name, None).await;
+        // epoch_loop should not replace the random keys at startup.
+        assert_eq!(initial, (public_key(&first, name), public_key(&second, name)));
+        assert_ne!(public_key(&first, name), public_key(&second, name));
+        assert_ne!(evaluate(&first, name, &point), evaluate(&second, name, &point));
+    }
+}
+
+/// Start an instance with a single epoch, so every epoch advance
+/// rotates the key, and return the public keys before and after rotation.
+async fn public_keys_around_rotation(static_keys: Vec<Vec<u8>>) -> (Vec<u8>, Vec<u8>) {
+    let config = static_keys_config(static_keys, "1s", EPOCH);
+    let oprf_state = OPRFServer::new(&config);
+    oprf_state.start_background_tasks(&config);
+    wait_for_epoch_loop(&oprf_state, "main", None).await;
+
+    let before = public_key(&oprf_state, "main");
+    let previous = next_epoch_time(&oprf_state, "main");
+    wait_for_epoch_loop(&oprf_state, "main", previous).await;
+    (before, public_key(&oprf_state, "main"))
+}
+
+#[tokio::test]
+async fn static_keys_reapplied_on_rotation() {
+    let (before, after) = public_keys_around_rotation(generate_static_keys()).await;
+    assert_eq!(before, after);
+}
+
+#[tokio::test]
+async fn random_keys_change_on_rotation() {
+    let (before, after) = public_keys_around_rotation(Vec::new()).await;
+    assert_ne!(before, after);
+}
+
+#[test]
+fn invalid_static_keys_rejected() {
+    let key = BASE64.decode("AAAA").unwrap();
+    assert!(decode_static_key(&key).is_err());
 }

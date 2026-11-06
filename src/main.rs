@@ -3,6 +3,7 @@
 use axum::{routing::get, routing::post, Router};
 use axum_prometheus::PrometheusMetricLayer;
 use axum_prometheus::metrics_exporter_prometheus::PrometheusHandle;
+use base64::prelude::{Engine as _, BASE64_STANDARD};
 use calendar_duration::CalendarDuration;
 use clap::Parser;
 use rlimit::Resource;
@@ -10,9 +11,9 @@ use state::{OPRFServer, OPRFState};
 use tikv_jemallocator::Jemalloc;
 use time::OffsetDateTime;
 use tokio::net::TcpListener;
-use tracing::{debug, info, metadata::LevelFilter};
+use tracing::{info, metadata::LevelFilter};
 use tracing_subscriber::EnvFilter;
-use util::{assert_unique_names, parse_timestamp};
+use util::{assert_unique_names, assert_valid_static_keys, parse_timestamp};
 
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
@@ -62,6 +63,16 @@ pub struct Config {
     /// Enable prometheus metric reporting and listen on specified address.
     #[arg(long)]
     prometheus_listen: Option<String>,
+    /// Generate private keys for all instances, print them as
+    /// `instancename = base64` lines, and exit.
+    #[arg(long, default_value_t = false, conflicts_with = "static_keys")]
+    generate_static_keys: bool,
+    /// Base64-encoded private key to use instead of a randomly generated key.
+    /// This switch may be defined multiple times to set the key for each
+    /// respective instance. If defined, a key must be provided for every
+    /// instance. The key is reapplied when all epochs are exhausted.
+    #[arg(long = "static-key", value_name = "base64", value_parser = |s: &str| BASE64_STANDARD.decode(s))]
+    static_keys: Vec<Vec<u8>>,
 }
 
 /// Initialize an axum::Router for our web service
@@ -117,21 +128,23 @@ fn increase_nofile_limit() {
 
 #[tokio::main]
 async fn main() {
-    // Start logging
-    // The default subscriber respects filter directives like `RUST_LOG=info`
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env()
-                .unwrap(),
-        )
-        .init();
-    info!("STARing up!");
-
     // Command line switches
     let config = Config::parse();
-    debug!(?config, "config parsed");
+
+    // Logging is disabled when generating keys, so that stdout
+    // only contains the generated keys.
+    if !config.generate_static_keys {
+        // The default subscriber respects filter directives like `RUST_LOG=info`
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::INFO.into())
+                    .from_env()
+                    .unwrap(),
+            )
+            .init();
+    }
+    info!("STARing up!");
 
     if config.increase_nofile_limit {
         increase_nofile_limit();
@@ -150,6 +163,13 @@ async fn main() {
         config.instance_names.len() == config.epoch_durations.len(),
         "instance-name switch count must match epoch-seconds switch count"
     );
+    assert_valid_static_keys(&config.instance_names, &config.static_keys);
+
+    if config.generate_static_keys {
+        let oprf_state = OPRFServer::new(&config);
+        oprf_state.print_private_keys();
+        return;
+    }
 
     let metric_layer = config.prometheus_listen.as_ref().map(|listen| {
         let (layer, handle) = PrometheusMetricLayer::pair();
