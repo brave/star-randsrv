@@ -182,15 +182,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
-name = "bincode"
-version = "1.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
-dependencies = [
- "serde",
-]
-
-[[package]]
 name = "bitflags"
 version = "1.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -941,12 +932,11 @@ checksum = "4a6394b9e965e73d0a289ee54f589087e2c676aedf60885baf52c76b771e4958"
 
 [[package]]
 name = "ppoprf"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3b7b66d326777b09375e9aab9142b6ef73ea758227e3d6f46cbb9dfe0bce7d3"
+checksum = "8c76569825569d0826e88dbc45e62557cc107aa760d1fe8c4589ed53136b3350"
 dependencies = [
  "base64",
- "bincode",
  "bitvec",
  "curve25519-dalek",
  "derive_more",
