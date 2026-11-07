@@ -1,8 +1,9 @@
 //! STAR Randomness web service
 
 use axum::{routing::get, routing::post, Router};
-use axum_prometheus::PrometheusMetricLayer;
 use axum_prometheus::metrics_exporter_prometheus::PrometheusHandle;
+use axum_prometheus::PrometheusMetricLayer;
+use base64::prelude::{Engine as _, BASE64_STANDARD};
 use calendar_duration::CalendarDuration;
 use clap::Parser;
 use rlimit::Resource;
@@ -10,9 +11,10 @@ use state::{OPRFServer, OPRFState};
 use tikv_jemallocator::Jemalloc;
 use time::OffsetDateTime;
 use tokio::net::TcpListener;
-use tracing::{debug, info, metadata::LevelFilter};
+use tokio::signal;
+use tracing::{info, metadata::LevelFilter};
 use tracing_subscriber::EnvFilter;
-use util::{assert_unique_names, parse_timestamp};
+use util::{assert_unique_names, assert_valid_static_keys, parse_timestamp};
 
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
@@ -32,7 +34,7 @@ const MAX_POINTS: usize = 1024;
 #[command(author, version, about, long_about = None)]
 pub struct Config {
     /// Host and port to listen for http connections
-    #[arg(long, default_value = "127.0.0.1:8080")]
+    #[arg(long, default_value = "0.0.0.0:8080")]
     listen: String,
     /// Name of OPRF instance contained in server. Multiple instances may be defined
     /// by defining this switch multiple times. The first defined instance will
@@ -42,7 +44,7 @@ pub struct Config {
     /// Duration of each randomness epoch. This switch may be defined multiple times
     /// to set the epoch length for each respective instance, if multiple instances
     /// are defined.
-    #[arg(long = "epoch-duration", value_name = "Duration string i.e. 1mon5h2s", default_values = ["5s"])]
+    #[arg(long = "epoch-duration", value_name = "Duration string i.e. 1mon5h2s", default_values = ["1m"])]
     epoch_durations: Vec<CalendarDuration>,
     /// First epoch tag to make available
     #[arg(long, default_value_t = 0)]
@@ -62,6 +64,16 @@ pub struct Config {
     /// Enable prometheus metric reporting and listen on specified address.
     #[arg(long)]
     prometheus_listen: Option<String>,
+    /// Generate private keys for all instances, print them as
+    /// `instancename = base64` lines, and exit.
+    #[arg(long, default_value_t = false, conflicts_with = "static_keys")]
+    generate_static_keys: bool,
+    /// Base64-encoded private key to use instead of a randomly generated key.
+    /// This switch may be defined multiple times to set the key for each
+    /// respective instance. If defined, a key must be provided for every
+    /// instance. The key is reapplied when all epochs are exhausted.
+    #[arg(long = "static-key", value_name = "base64", value_parser = |s: &str| BASE64_STANDARD.decode(s))]
+    static_keys: Vec<Vec<u8>>,
 }
 
 /// Initialize an axum::Router for our web service
@@ -95,9 +107,7 @@ fn start_prometheus_server(metrics_handle: PrometheusHandle, addr: String) {
             Router::new().route("/metrics", get(|| async move { metrics_handle.render() }));
         info!("Metrics server listening on {}", addr);
         let listener = TcpListener::bind(addr).await.unwrap();
-        axum::serve(listener, metrics_app)
-            .await
-            .unwrap();
+        axum::serve(listener, metrics_app).await.unwrap();
     });
 }
 
@@ -117,21 +127,23 @@ fn increase_nofile_limit() {
 
 #[tokio::main]
 async fn main() {
-    // Start logging
-    // The default subscriber respects filter directives like `RUST_LOG=info`
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env()
-                .unwrap(),
-        )
-        .init();
-    info!("STARing up!");
-
     // Command line switches
     let config = Config::parse();
-    debug!(?config, "config parsed");
+
+    // Logging is disabled when generating keys, so that stdout
+    // only contains the generated keys.
+    if !config.generate_static_keys {
+        // The default subscriber respects filter directives like `RUST_LOG=info`
+        tracing_subscriber::fmt()
+            .with_env_filter(
+                EnvFilter::builder()
+                    .with_default_directive(LevelFilter::INFO.into())
+                    .from_env()
+                    .unwrap(),
+            )
+            .init();
+    }
+    info!("STARing up!");
 
     if config.increase_nofile_limit {
         increase_nofile_limit();
@@ -150,6 +162,13 @@ async fn main() {
         config.instance_names.len() == config.epoch_durations.len(),
         "instance-name switch count must match epoch-seconds switch count"
     );
+    assert_valid_static_keys(&config.instance_names, &config.static_keys);
+
+    if config.generate_static_keys {
+        let oprf_state = OPRFServer::new(&config);
+        oprf_state.print_private_keys();
+        return;
+    }
 
     let metric_layer = config.prometheus_listen.as_ref().map(|listen| {
         let (layer, handle) = PrometheusMetricLayer::pair();
@@ -170,5 +189,33 @@ async fn main() {
     // Start the server
     info!("Listening on {}", &config.listen);
     let listener = TcpListener::bind(&config.listen).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await
+        .unwrap();
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        signal::unix::signal(signal::unix::SignalKind::terminate())
+            .expect("failed to install signal handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {},
+        _ = terminate => {},
+    }
+    info!("Shutdown signal received, shutting down gracefully");
 }

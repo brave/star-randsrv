@@ -1,6 +1,7 @@
 //! STAR Randomness web service
 //! Epoch and key state and its management
 
+use base64::prelude::{Engine as _, BASE64_STANDARD};
 use calendar_duration::CalendarDuration;
 use std::{
     collections::HashMap,
@@ -9,6 +10,7 @@ use std::{
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use tracing::{info, instrument};
 
+use crate::util::decode_static_key;
 use crate::Config;
 use ppoprf::ppoprf;
 
@@ -34,6 +36,13 @@ impl OPRFInstance {
             epoch,
             next_epoch_time: None,
         })
+    }
+
+    /// Decode a postcard-serialized private key and apply it to the instance.
+    /// Panics if the key cannot be decoded.
+    pub fn set_private_key(&mut self, key: &[u8]) {
+        self.server
+            .set_private_key(decode_static_key(key).expect("static key should be valid"));
     }
 }
 
@@ -90,21 +99,37 @@ impl OPRFServer {
         })
     }
 
+    /// Serialize the private keys of all instances, keyed by instance name
+    pub fn get_private_keys(&self) -> HashMap<String, Vec<u8>> {
+        self.instances
+            .iter()
+            .map(|(instance_name, instance)| {
+                let instance = instance.read().expect("Failed to lock OPRFServer");
+                let key = postcard::to_stdvec(&instance.server.get_private_key())
+                    .expect("should be able to serialize private key");
+                (instance_name.clone(), key)
+            })
+            .collect()
+    }
+
+    /// Print the private keys of all instances, one
+    /// `instancename = base64` line per instance
+    pub fn print_private_keys(&self) {
+        for (instance_name, key) in self.get_private_keys() {
+            println!("{instance_name} = {}", BASE64_STANDARD.encode(key));
+        }
+    }
+
     /// Start background tasks to keep OPRF instances up to date
     pub fn start_background_tasks(self: &Arc<Self>, config: &Config) {
-        for (instance_name, instance_epoch_duration) in config
-            .instance_names
-            .iter()
-            .cloned()
-            .zip(config.epoch_durations.iter().cloned())
-        {
+        for instance_name in config.instance_names.iter().cloned() {
             // Spawn a background process to advance the epoch
             info!(instance_name, "Spawning background epoch rotation task...");
             let background_state = self.clone();
             let background_config = config.clone();
             tokio::spawn(async move {
                 background_state
-                    .epoch_loop(background_config, instance_name, instance_epoch_duration)
+                    .epoch_loop(background_config, instance_name)
                     .await
             });
         }
@@ -113,18 +138,26 @@ impl OPRFServer {
     /// Advance to the next epoch on a timer
     /// This can be invoked as a background task to handle epoch
     /// advance and key rotation according to the given instance.
-    #[instrument(skip(self, config, instance_epoch_duration))]
-    async fn epoch_loop(
-        self: Arc<Self>,
-        config: Config,
-        instance_name: String,
-        instance_epoch_duration: CalendarDuration,
-    ) {
+    #[instrument(skip(self, config))]
+    async fn epoch_loop(self: Arc<Self>, config: Config, instance_name: String) {
         let server = self
             .instances
             .get(&instance_name)
             .expect("OPRFServer should exist for instance name");
+        let instance_index = config
+            .instance_names
+            .iter()
+            .position(|name| *name == instance_name)
+            .expect("instance name should exist in config");
+        let instance_epoch_duration = config.epoch_durations[instance_index];
+        let static_key = config.static_keys.get(instance_index);
         let epochs = config.first_epoch..=config.last_epoch;
+
+        if let Some(static_key) = static_key {
+            info!("Applying static key");
+            let mut s = server.write().expect("Failed to lock OPRFServer");
+            s.set_private_key(static_key);
+        }
 
         info!("rotating epoch every {instance_epoch_duration}");
 
@@ -222,6 +255,10 @@ impl OPRFServer {
                 // violate privacy through further evaluations, but we
                 // still want to drop the inner state with its private key.
                 *s = OPRFInstance::new(&config).expect("Could not initialize new PPOPRF server");
+                if let Some(static_key) = static_key {
+                    info!("Reapplying static key");
+                    s.set_private_key(static_key);
+                }
             }
             info!("epoch now {}, next rotation = {next_rotation}", s.epoch);
         }
