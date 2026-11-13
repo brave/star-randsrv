@@ -23,9 +23,6 @@ jobs:
       with:
         role-to-assume: ${{ secrets.GDBP_AWS_IAM_ROLE_ARN }}
         aws-region: us-west-2
-    - name: Override GITHUB_REF and thus ECR destination for main
-      run: echo "GITHUB_REF_OVERRIDE=refs/heads/dev" >> $GITHUB_ENV
-      if: ${{ github.ref == 'refs/heads/main' }}
     - name: Set REPRODUCIBLE to get a reproducible build
       run: echo "REPRODUCIBLE=true" >> $GITHUB_ENV
     - name: Generalized Deployments
