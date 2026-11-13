@@ -13,7 +13,7 @@ base64 = "0.22.1"
 calendar-duration = "1.0.0"
 clap = { version = "4.5.4", features = ["derive"] }
 postcard = { version = "1.1", features = ["use-std"] }
-ppoprf = { version = "0.4.2", features = ["key-sync"] }
+ppoprf = { version = "0.5.0", features = ["key-sync"] }
 rlimit = "0.10"
 serde = "1.0.200"
 serde_json = "1.0.115"
